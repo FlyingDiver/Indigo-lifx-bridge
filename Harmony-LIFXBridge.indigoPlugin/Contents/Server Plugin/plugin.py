@@ -3,12 +3,8 @@
 ####################
 
 import socket
-import json
-import traceback
-import uuid
-
-from hue_listener import Httpd
-from discovery import Broadcaster, Responder
+import threading
+from responder import LifxResponseHandler, LifxServer
 
 try:
     import indigo
@@ -21,7 +17,7 @@ except:
 
 PUBLISHED_KEY = "published"
 ALT_NAME_KEY = "alternate-name"
-DEVICE_LIMIT = 27 # Imposed by the built-in Hue support in Alexa
+DEFAULT_LIFX_PORT = 56700
 
 
 ################################################################################
@@ -29,28 +25,14 @@ class Plugin(indigo.PluginBase):
     ########################################
     def __init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs):
         indigo.PluginBase.__init__(self, pluginId, pluginDisplayName, pluginVersion, pluginPrefs)
+        
         self.debug = self.pluginPrefs.get("showDebugInfo", False)
-        if "uuid" not in pluginPrefs:
-            pluginPrefs["uuid"] = str(uuid.uuid1())
-        self.uuid = pluginPrefs["uuid"]
         self.debugLog(u"Debugging enabled")
-        self.threadDebug = self.pluginPrefs.get("showThreadDebugInfo", False)
-        self.threadDebugLog(u"Thread debugging enabled")
-        # Add the webserver object - we'll start and stop it in the startup/shutdown methods below.
-        self.host = self.pluginPrefs.get("host", "auto")
-        if self.host == "auto":
-            try:
-                self.host = socket.gethostbyname(socket.gethostname())
-            except socket.gaierror:
-                self.errorLog("Computer has no host name specified. Check the Sharing system preference and restart the plugin once the name is resolved.")
-                self.host = None
-        self.port = self.pluginPrefs.get("port", "auto")
-        if self.port == "auto":
-            self.port = 8177
-        self.webServer = Httpd(self.host, self.port, self)
-        self.broadcaster = None
-        self.responder = None
+                    
+        self.server = None
+        
         self.refreshDeviceList()
+        
         # Need to subscribe to device changes here so we can call the refreshDeviceList method
         # in case there was a change or deletion of a device that's published
         indigo.devices.subscribeToChanges()
@@ -59,28 +41,22 @@ class Plugin(indigo.PluginBase):
         indigo.PluginBase.__del__(self)
 
     def startup(self):
-        indigo.server.log(u"Starting hue bridge web server and discovery threads")
-        if self.host:
-            self.webServer.start()
-            self.broadcaster = Broadcaster(self.host, self.port, self.threadDebugLog, self.uuid)
-            self.broadcaster.start()
-            self.responder = Responder(self.host, self.port, self.threadDebugLog, self.errorLog, self.uuid)
-            self.responder.start()
+        indigo.server.log(u"Starting Harmony Hub bridge server thread")
+
+    	address = ('', DEFAULT_LIFX_PORT)
+    	self.server = LifxServer(address, LifxResponseHandler)
+    	ip, port = self.server.server_address
+    	self.debugLog('Server on ' +  str(ip) + ':' + str(port))
+
+    	t = threading.Thread(target=self.server.serve_forever)
+    	t.setDaemon(True) # don't hang on exit
+    	t.start()
 
     def shutdown(self):
-        self.debugLog(u"Shutting down hue bridge web server")
-        self.webServer.stop()
-        if self.broadcaster:
-            self.broadcaster.stop()
-        if self.responder:
-            self.responder.stop()
+        self.debugLog(u"Shutting down Harmony Hub bridge server")
+        if self.server:
+    		self.server.socket.close()
 
-    def threadDebugLog(self, msg):
-        if self.threadDebug and self.debug:
-            indigo.server.log(type=self.pluginDisplayName + u" Thread Debug", message=msg)
-
-    def infoLog(self, msg):
-        indigo.server.log(type=self.pluginDisplayName, message=msg)
 
     ########################################
     # Prefs dialog methods
@@ -108,7 +84,7 @@ class Plugin(indigo.PluginBase):
     def deviceDeleted(self, dev):
         self.debugLog(u"deviceDeleted called")
         if dev.id in self.publishedDevices:
-            indigo.server.log(u"A device (%s) that was published has been deleted - you'll probably want use the Alexa app to forget that device." % dev.name)
+            indigo.server.log(u"A device (%s) that was published has been deleted." % dev.name)
             self.refreshDeviceList()
 
     def deviceUpdated(self, origDev, newDev):
@@ -119,13 +95,13 @@ class Plugin(indigo.PluginBase):
             if ALT_NAME_KEY in origDev.pluginProps or ALT_NAME_KEY in newDev.pluginProps:
                 if origDev.pluginProps.get(ALT_NAME_KEY, None) != newDev.pluginProps.get(ALT_NAME_KEY, None):
                     self.refreshDeviceList()
-                    indigo.server.log(u"A device name changed - you'll most likely want to perform the 'Alexa, discover devices' command on all Alexa devices. #100")
+                    indigo.server.log(u"A device alternative name changed.")
             elif origDev.name != newDev.name:
                 self.refreshDeviceList()
-                indigo.server.log(u"A device name changed - you'll most likely want to perform the 'Alexa, discover devices' command on all Alexa devices. #101")
+                indigo.server.log(u"A device name changed.")
             elif origDev.pluginProps.get(PUBLISHED_KEY, "False") != newDev.pluginProps.get(PUBLISHED_KEY, "False"):
                 self.refreshDeviceList()
-                indigo.server.log(u"Your published device list changed - you'll most likely want to perform the 'Alexa, discover devices' command on all Alexa devices.")
+                indigo.server.log(u"Your published device list changed.")
 
     ########################################
     # This method is called to refresh the list of published devices.
@@ -137,10 +113,7 @@ class Plugin(indigo.PluginBase):
             props = dev.pluginProps
             if PUBLISHED_KEY in props:
                 self.debugLog(u"found published device: %i - %s" % (dev.id, dev.name))
-                if len(self.publishedDevices) >= DEVICE_LIMIT:
-                    self.errorLog(u"Device limit of %i reached: device %s skipped" % (DEVICE_LIMIT, dev.name))
-                else:
-                    self.publishedDevices[dev.id] = props.get(ALT_NAME_KEY, "")
+                self.publishedDevices[dev.id] = props.get(ALT_NAME_KEY, "")
         indigo.server.log(u"%i devices published" % len(self.publishedDevices))
 
     ########################################
@@ -150,19 +123,6 @@ class Plugin(indigo.PluginBase):
         # A little bit of Python list comprehension magic here. Basically, it iterates through
         # the device list and only adds the device if it has an onState property.
         return [(dev.id, dev.name) for dev in indigo.devices if hasattr(dev, "onState")]
-
-    ########################################
-    # We implement this method (which is from the plugin base) because we want to show/hide the message at the top
-    # indicating that the max number of devices has been published.
-    ########################################
-    def getMenuActionConfigUiValues(self, menuId):
-        self.debugLog(u"getMenuActionConfigUiValues: published device count is %i" % len(self.publishedDevices))
-        valuesDict = indigo.Dict()
-        # Show the label in the dialog that tells the user they've reached the device limit
-        if len(self.publishedDevices) >= DEVICE_LIMIT:
-            valuesDict["showLimitMessage"] = True
-        errorMsgDict = indigo.Dict()
-        return (valuesDict, errorMsgDict)
 
     ########################################
     # These are the methods that's called when devices are selected from the various lists/menus. They enable other
@@ -201,12 +161,7 @@ class Plugin(indigo.PluginBase):
             deviceId = 0
         if deviceId == 0:
             return
-        if deviceId not in self.publishedDevices and len(self.publishedDevices) >= DEVICE_LIMIT:
-            errorText = "You can't publish any more devices - you've reached the max of %i imposed by Alexa." % DEVICE_LIMIT
-            self.errorLog(errorText)
-            errorsDict = indigo.Dict()
-            errorsDict["showAlertText"] = errorText
-            return (valuesDict, errorsDict)
+
         # Get the list of devices that have already been added to the list
         # If the key doesn't exist then return an empty string indicating
         # no devices have yet been added. "memberDevices" is a hidden text
@@ -237,9 +192,6 @@ class Plugin(indigo.PluginBase):
         valuesDict["enableAltNameField"] = "False"
         # Clear out the alternate name field
         valuesDict["altName"] = ""
-        if len(self.publishedDevices) >= DEVICE_LIMIT:
-            # Show the label in the dialog that tells the user they've reached the device limit
-            valuesDict["showLimitMessage"] = True
         return valuesDict
 
     ########################################
@@ -255,9 +207,6 @@ class Plugin(indigo.PluginBase):
             # Setting a device's plugin props to None will completely delete the props for this plugin in the devices'
             # globalProps.
             dev.replacePluginPropsOnServer(None)
-        if len(self.publishedDevices) < DEVICE_LIMIT:
-            # Hide the label in the dialog that tells the user they've reached the device limit
-            valuesDict["showLimitMessage"] = False
         return valuesDict
 
     ########################################
@@ -274,23 +223,6 @@ class Plugin(indigo.PluginBase):
             returnList.append((id, deviceName))
             returnList = sorted(returnList, key= lambda item: item[1])
         return returnList
-
-    ########################################
-    # This is the method that's called to validate the action config UIs.
-    ########################################
-    def validateActionConfigUi(self, valuesDict, typeId, devId):
-        self.debugLog(u"Validating action config for type: " + typeId)
-        errorsDict = indigo.Dict()
-        if typeId == "startDiscovery":
-            try:
-                amount = int(valuesDict["expireMinutes"])
-                if amount not in range(0, 11):
-                    raise
-            except:
-                errorsDict["amount"] = "Amount must be a positive integer from 0 to 10"
-        if len(errorsDict) > 0:
-            return (False, valuesDict, errorsDict)
-        return (True, valuesDict)
 
     ########################################
     # This is the method that's called to build the member device list. Note
@@ -411,46 +343,3 @@ class Plugin(indigo.PluginBase):
             indigo.server.log(u"Turning on debug logging")
             self.pluginPrefs["showDebugInfo"] = True
         self.debug = not self.debug
-
-    ########################################
-    # Actions defined in Actions.xml:
-    ########################################
-    def startDiscovery(self, action):
-        indigo.server.log(u"Starting discovery process")
-        # Because it's possible that this action can be called from a script, we need to validate it
-        validation = self.validateActionConfigUi(action.props, "startDiscovery", None)
-        validProps = validation[0]
-        if validProps:
-            self.debugLog(u"startDiscovery props validated")
-            # If the broadcaster and responder threads are not already running, create new ones and start them
-            if not self.broadcaster or (self.broadcaster and not self.broadcaster.is_alive()):
-                self.debugLog(u"broadcaster thread is not alive, starting it")
-                self.broadcaster = Broadcaster(self.host, self.port, self.threadDebugLog, self.uuid, int(action.props["expireMinutes"]))
-                try:
-                    self.broadcaster.start()
-                except:
-                    # the broadcaster won't start for some reason, so just tell them to try restarting the plugin
-                    self.errorLog(u"Start Discovery action failed: broadcaster thread couldn't start. Try restarting the plugin.")
-                    return
-            if not self.responder or (self.responder and not self.responder.is_alive()):
-                self.debugLog(u"responder thread is not alive, starting it")
-                self.responder = Responder(self.host, self.port, self.threadDebugLog, self.errorLog, self.uuid, int(action.props["expireMinutes"]))
-                try:
-                    self.responder.start()
-                except:
-                    # the responder won't start for some reason, so just tell them to try restarting the plugin
-                    self.errorLog(u"Start Discovery action failed: responder thread couldn't start. Try restarting the plugin.")
-                    # If the broadcaster thread started correctly, then we need to shut it down since it won't work
-                    # without the responder thread.
-                    if self.broadcaster:
-                        self.broadcaster.stop()
-        else:
-            self.errorLog(u"Start Discovery action failed validation: \n%s" % validation[2])
-
-    def stopDiscovery(self, action=None):
-        indigo.server.log(u"Stopping discovery process")
-        # Stop the discovery threads
-        if self.broadcaster:
-            self.broadcaster.stop()
-        if self.responder:
-            self.responder.stop()
