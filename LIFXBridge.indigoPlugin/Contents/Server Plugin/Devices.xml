@@ -1,0 +1,17 @@
+<Devices>
+	<Device type="dimmer" id="lifxBulb">
+		<Name>LIFX Bulb</Name>
+		<States>
+			<State id="lastIP">
+				<ValueType>String</ValueType>
+				<TriggerLabel>IP Address</TriggerLabel>
+				<ControlPageLabel>IP Address</ControlPageLabel>
+			</State>
+			<State id="MACAddress">
+				<ValueType>String</ValueType>
+				<TriggerLabel>MAC Address</TriggerLabel>
+				<ControlPageLabel>MAC Address</ControlPageLabel>
+			</State>
+		</States>
+	</Device>
+</Devices>
