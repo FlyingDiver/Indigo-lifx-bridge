@@ -1,8 +1,0 @@
-@startuml
-
-Client -> Device: Lx::Protocol::Device::GetService
-note left: Send UDP broadcast to port 56700\ntagged = 1
-Client <- Device: Lx::Protocol::Device::StateService
-note left: Register device service and port\nFuture messages can be unicast datagrams
-
-@enduml

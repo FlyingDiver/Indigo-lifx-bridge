@@ -9,9 +9,9 @@
 	<key>IwsApiVersion</key>
 	<string>1.0.0</string>
 	<key>CFBundleDisplayName</key>
-	<string>Harmony-LIFX Bridge</string>
+	<string>LIFX Bridge</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.flyingdiver.indigoplugin.harmony-lifx-bridge</string>
+	<string>com.flyingdiver.indigoplugin.lifxbridge</string>
 	<key>CFBundleVersion</key>
 	<string>1.0.0</string>
 	<key>CFBundleURLTypes</key>
