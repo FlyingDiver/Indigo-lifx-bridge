@@ -26,7 +26,7 @@
                 <Label>Alternate name:</Label>
             </Field>
             <Field id="altNameLabel" type="label" fontColor="darkgray" fontSize="small" alignWithControl="true">
-                <Label>If you want Alexa to recognize a different name for this device, enter it above. Otherwise, leave it blank to use the default device name.</Label>
+                <Label>If you want to use a different name for this device, enter it above. Otherwise, leave it blank to use the default device name.</Label>
             </Field>
             <Field id="addDevice" type="button" enabledBindingId="enableAltNameField">
                 <Label/>
@@ -35,7 +35,7 @@
             </Field>
             <Field id="sep1" type="separator"/>
             <Field id="publishedLabel" type="label" fontColor="darkgray">
-                <Label>This is the list of devices currently published to the bridge. There is a limit of 27 devices currently imposed by the Amazon implementation. If you specified an alternate name, it will show in parenthesis after the Indigo name.</Label>
+                <Label>This is the list of devices currently published to the bridge. If you specified an alternate name, it will show in parenthesis after the Indigo name.</Label>
             </Field>
             <Field id="memberDeviceList" type="list" rows="15">
                 <Label>Published devices:</Label>

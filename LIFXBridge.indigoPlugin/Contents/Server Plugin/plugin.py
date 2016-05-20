@@ -42,6 +42,7 @@ class Plugin(indigo.PluginBase):
 		self.debugLog(u"Debugging enabled")
 			
 		self.updater = GitHubPluginUpdater(self)
+		self.next_update_check = time.time() + float(self.pluginPrefs['updateFrequency']) * 60.0 * 60.0
 				
 		self.refreshDeviceList()
 		
@@ -56,7 +57,7 @@ class Plugin(indigo.PluginBase):
 		indigo.server.log(u"Starting LIFX bridge server")
 		
 		self.updater.checkForUpdate()
-
+		
 		try :
 			self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 			self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -82,8 +83,10 @@ class Plugin(indigo.PluginBase):
 
 		while True:
 			
-			# need to add periodic check for updates here
-			
+			if time.time() > self.next_update_check:
+				self.updater.checkForUpdate()
+				self.next_update_check = time.time() + float(self.pluginPrefs['updateFrequency']) * 60.0 * 60.0
+				
 			try:
 				data, (ip_addr, port) = self.sock.recvfrom(1024)
 
@@ -259,7 +262,7 @@ class Plugin(indigo.PluginBase):
 					
 							for field in message.payload_fields:
 								if field[0] == "Power":
-									turnOnOffDevice(devID, field[1])
+									self.turnOnOffDevice(devID, field[1])
 									break
 
 					if message.ack_requested:
@@ -492,7 +495,7 @@ class Plugin(indigo.PluginBase):
 					
 							for field in message.payload_fields:
 								if field[0] == "Power":
-									turnOnOffDevice(devID, field[1])
+									self.turnOnOffDevice(devID, field[1])
 									break
 
 					if message.ack_requested:
