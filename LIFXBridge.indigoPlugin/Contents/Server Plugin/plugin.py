@@ -4,9 +4,12 @@
 
 import socket
 import time
+
 from lifxlan.msgtypes import *
 from lifxlan.unpack import unpack_lifx_message
 from lifxlan.message import Message, BROADCAST_MAC, HEADER_SIZE_BYTES, little_endian
+
+from ghpu import GitHubPluginUpdater
 
 try:
 	import indigo
@@ -37,7 +40,9 @@ class Plugin(indigo.PluginBase):
 		
 		self.debug = self.pluginPrefs.get("showDebugInfo", False)
 		self.debugLog(u"Debugging enabled")
-							
+			
+		self.updater = GitHubPluginUpdater(self)
+				
 		self.refreshDeviceList()
 		
 		# Need to subscribe to device changes here so we can call the refreshDeviceList method
@@ -50,6 +55,8 @@ class Plugin(indigo.PluginBase):
 	def startup(self):
 		indigo.server.log(u"Starting LIFX bridge server")
 		
+		self.updater.checkForUpdate()
+
 		try :
 			self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 			self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -74,7 +81,9 @@ class Plugin(indigo.PluginBase):
 		self.stopThread = False
 
 		while True:
-					
+			
+			# need to add periodic check for updates here
+			
 			try:
 				data, (ip_addr, port) = self.sock.recvfrom(1024)
 
@@ -90,8 +99,6 @@ class Plugin(indigo.PluginBase):
 				source = message.source_id
 				seq_num = message.seq_num
 
-#				self.debugLog("Received message from " + ip_addr + ":" + str(port) + ":\n" + str(message))
-
 				if message.message_type == MSG_IDS[GetService]:														# 2
 					self.debugLog("Responding to GetService message")
 
@@ -100,12 +107,10 @@ class Plugin(indigo.PluginBase):
 					for devID, alias in self.publishedDevices.items():
 						target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
 						replyMessage = StateService(target_addr, source, seq_num, payload, False, False) 
-#						self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 						
 						if message.ack_requested:
 							replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#							self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 					# repeat with service 5?  The bulbs do.
@@ -131,12 +136,10 @@ class Plugin(indigo.PluginBase):
 							
 							payload = {"signal":"0","tx":"0","rx":"0","reserved1":"0"}
 							replyMessage = StateHostInfo(message.target_addr, source, seq_num, payload, False, False)
-#							self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 							if message.ack_requested:
 								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 				elif message.message_type == MSG_IDS[StateHostInfo]:												# 13
@@ -159,12 +162,10 @@ class Plugin(indigo.PluginBase):
 							
 							payload = {"build":"1428977151000000000","reserved1":"1428977151000000000","version":"65538"}
 							replyMessage = StateHostFirmware(message.target_addr, source, seq_num, payload, False, False)
-#							self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 							if message.ack_requested:
 								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 				elif message.message_type == MSG_IDS[StateHostFirmware]:											# 15
@@ -187,12 +188,10 @@ class Plugin(indigo.PluginBase):
 							
 							payload = {"signal":"944912011","tx":"3397400","rx":"23670","reserved1":"3010"}
 							replyMessage = StateWifiInfo(message.target_addr, source, seq_num, payload, False, False) 
-#							self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 							if message.ack_requested:
 								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 				elif message.message_type == MSG_IDS[StateWifiInfo]:												# 17
@@ -215,12 +214,10 @@ class Plugin(indigo.PluginBase):
 							
 							payload = {"build":"0","reserved1":"0","version":"6619161"}
 							replyMessage = StateWifiFirmware(message.target_addr, source, seq_num, payload, False, False)
-#							self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 							if message.ack_requested:
 								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 				elif message.message_type == MSG_IDS[StateWifiFirmware]:											# 19
@@ -247,12 +244,10 @@ class Plugin(indigo.PluginBase):
 								level = "0"
 							payload = {"power_level":level}
 							replyMessage = StatePower(message.target_addr, source, seq_num, payload, False, False)
-#							self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 							if message.ack_requested:
 								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 				elif message.message_type == MSG_IDS[SetPower]:														# 21
@@ -263,16 +258,12 @@ class Plugin(indigo.PluginBase):
 							self.debugLog("\tCommand is for device: " + indigo.devices[devID].name)							
 					
 							for field in message.payload_fields:
-								if field[0] == "power":
-									if field[1] == "0":
-										self.debugLog("\t\tTurning device OFF")
-									else:
-										self.debugLog("\t\tTurning device OFF")
+								if field[0] == "Power":
+									turnOnOffDevice(devID, field[1])
 									break
 
 					if message.ack_requested:
 						replyMessage = Acknowledgement(message.target_addr, source, seq_num, None, False, False) 
-#						self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 					if message.response_requested:
@@ -304,12 +295,10 @@ class Plugin(indigo.PluginBase):
 								
 							payload = {"label":label}
 							replyMessage = StateLabel(message.target_addr, source, seq_num, payload, False, False)
-#							self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 							if message.ack_requested:
 								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 				elif message.message_type == MSG_IDS[SetLabel]:														# 24
@@ -321,7 +310,6 @@ class Plugin(indigo.PluginBase):
 							if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
 
 								replyMessage = Acknowledgement(message.target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 								
 					if message.response_requested:
@@ -347,12 +335,10 @@ class Plugin(indigo.PluginBase):
 							
 							payload = {"vendor":"1","product":"10","version":"0"}
 							replyMessage = StateVersion(message.target_addr, source, seq_num, payload, False, False) 
-#							self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 							if message.ack_requested:
 								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 				elif message.message_type == MSG_IDS[StateVersion]:													# 33
@@ -376,12 +362,10 @@ class Plugin(indigo.PluginBase):
 						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
 							payload = {"time":time_s,"uptime":"1243200000000","downtime":"0"}
 							replyMessage = StateInfo(message.target_addr, source, seq_num, payload, False, False) 
-#							self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 							if message.ack_requested:
 								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 				elif message.message_type == MSG_IDS[StateInfo]:													# 35
@@ -409,12 +393,10 @@ class Plugin(indigo.PluginBase):
 					for devID, alias in self.publishedDevices.items():
 						target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
 						replyMessage = EchoReply(target_addr, source, seq_num, payload, False, False) 
-#						self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 						if message.ack_requested:
 							replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#							self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 				elif message.message_type == MSG_IDS[EchoResponse]:													# 59
@@ -446,17 +428,16 @@ class Plugin(indigo.PluginBase):
 							payload = {"color": ("16200", "130", "65535", "3000"),"reserved1":"0","power_level":power,"label":label,"reserved2":"0"}
 							target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
 							replyMessage = LightState(target_addr, source, seq_num, payload, False, False) 
-#							self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 							if message.ack_requested:
 								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 				elif message.message_type == MSG_IDS[LightSetColor]:												# 102
-#					self.debugLog("Ignoring LightSetColor message")
-					
+					self.debugLog("Responding to LightSetPower message, target_addr = " + message.target_addr)
+					self.debugLog("\tLightSetPower not implemented yet. Payload = " + str(message.payload_fields))
+
 					if message.ack_requested:
 						for devID, alias in self.publishedDevices.items():
 					
@@ -464,7 +445,6 @@ class Plugin(indigo.PluginBase):
 
 								target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
 								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 					if message.response_requested:
@@ -497,12 +477,10 @@ class Plugin(indigo.PluginBase):
 							payload = {"power_level":level}
 							target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
 							replyMessage = LightStatePower(target_addr, source, seq_num, payload, False, False)
-#							self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 							if message.ack_requested:
 								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 				elif message.message_type == MSG_IDS[LightSetPower]:												# 117
@@ -514,12 +492,7 @@ class Plugin(indigo.PluginBase):
 					
 							for field in message.payload_fields:
 								if field[0] == "Power":
-									if field[1] == 0:
-										self.debugLog("\t\tTurning device OFF")
-										indigo.device.turnOff(devID)
-									else:
-										self.debugLog("\t\tTurning device ON")
-										indigo.device.turnOn(devID)
+									turnOnOffDevice(devID, field[1])
 									break
 
 					if message.ack_requested:
@@ -529,7 +502,6 @@ class Plugin(indigo.PluginBase):
 
 								target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
 								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
 					if message.response_requested:
@@ -546,7 +518,6 @@ class Plugin(indigo.PluginBase):
 								payload = {"power_level":level}
 								target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
 								replyMessage = LightStatePower(target_addr, source, seq_num, payload, False, False)
-#								self.debugLog("Sending to " + ip_addr + ":" + str(port) + ":\n" + str(replyMessage))
 								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 				
 				elif message.message_type == MSG_IDS[LightStatePower]:												# 118
@@ -789,3 +760,13 @@ class Plugin(indigo.PluginBase):
 			indigo.server.log(u"Turning on debug logging")
 			self.pluginPrefs["showDebugInfo"] = True
 		self.debug = not self.debug
+
+	def checkForUpdates(self):
+		self.updater.checkForUpdate()
+
+	def updatePlugin(self):
+		self.updater.update()
+
+	def forceUpdate(self):
+		self.updater.update(currentVersion='0.0.0')
+			

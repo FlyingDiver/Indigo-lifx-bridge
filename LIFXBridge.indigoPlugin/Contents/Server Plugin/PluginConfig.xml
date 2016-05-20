@@ -1,4 +1,12 @@
 <PluginConfig>
+	<SupportURL>http://forums.indigodomo.com/viewtopic.php?f=177</SupportURL>
+	<Field id="updateFrequency" type="textfield" defaultValue="24">
+		<Label>Check for plugin update frequency (hours):</Label>
+	</Field>
+	<Field id="messageNote" type="label" fontSize="small" fontColor="darkgray">
+		<Label>The plugin will not check for updates if the frequency is set to zero.</Label>
+	</Field>
+	<Field id="sep1" type="separator"/>
 	<Field id="updaterEmail" type="textfield">
 		<Label>Email:</Label>
 	</Field>
@@ -6,18 +14,8 @@
 		<Label>Email Update Notifications:</Label>
 	</Field>
 	<Field id="sep2" type="separator"/>
-	<Field id="topLabel" type="label" fontSize="small" fontColor="darkgray">
-		<Label>If you are having problems with the plugin, you can enable extra logging in the Event Log window by checking this button. Use with caution.</Label>
-	</Field>
-	<Field type="checkbox" id="showDebugInfo">
-		<Label>Enable debuging:</Label>
+	<Field id="showDebugInfo" type="checkbox">
+		<Label>Enable debugging:</Label>
 		<Description>(not recommended)</Description>
-	</Field>
-	<Field type="checkbox" id="showThreadDebugInfo" enabledBindingId="showDebugInfo">
-		<Label>Enable thread debugging:</Label>
-		<Description>(really not recommended)</Description>
-	</Field>
-	<Field id="bottomLabel" type="label" fontSize="small" fontColor="darkgray" alignWithControl="true">
-		<Label>This is for advanced problems only - it will fill up your log with a lot of information. You should only do this if asked by someone trying to help with a specific issue.</Label>
 	</Field>
 </PluginConfig>
