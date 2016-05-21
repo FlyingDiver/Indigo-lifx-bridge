@@ -54,7 +54,7 @@ class Plugin(indigo.PluginBase):
 		indigo.PluginBase.__del__(self)
 
 	def startup(self):
-		indigo.server.log(u"Starting LIFX bridge server")
+		indigo.server.log(u"Starting LIFX Bridge")
 		
 		self.updater.checkForUpdate()
 		
@@ -75,7 +75,7 @@ class Plugin(indigo.PluginBase):
 			return
 	  				
 	def shutdown(self):
-		indigo.server.log(u"Shutting down LIFX bridge server")
+		indigo.server.log(u"Shutting down LIFX Bridge")
 		self.sock.close()
 
 	def runConcurrentThread(self):
@@ -87,456 +87,24 @@ class Plugin(indigo.PluginBase):
 				self.updater.checkForUpdate()
 				self.next_update_check = time.time() + float(self.pluginPrefs['updateFrequency']) * 60.0 * 60.0
 				
-			try:
-				data, (ip_addr, port) = self.sock.recvfrom(1024)
+			if len(self.publishedDevices) > 0:		# no need to respond if there aren't any devices to emulate
+			
+				try:
+					data, (ip_addr, port) = self.sock.recvfrom(1024)
 
-			except socket.timeout:
-				pass
+				except socket.timeout:
+					pass
 
-			except socket.error , msg:
-				self.debugLog('Socket recvfrom failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
-
-			else:
-				message = unpack_lifx_message(data)
-				message.ip_addr = ip_addr
-				source = message.source_id
-				seq_num = message.seq_num
-
-				if message.message_type == MSG_IDS[GetService]:														# 2
-					self.debugLog("Responding to GetService message")
-
-					payload = {"service": "1", "port": "56700"}
-					
-					for devID, alias in self.publishedDevices.items():
-						target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
-						replyMessage = StateService(target_addr, source, seq_num, payload, False, False) 
-						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-						
-						if message.ack_requested:
-							replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-					# repeat with service 5?  The bulbs do.
-					
-					
-				elif message.message_type == MSG_IDS[StateService]:													# 3
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("StateService message for device " + devID + " - not supported!")
-							
-							if message.ack_requested:
-								self.debugLog("Oops!  Client wants an ACK")
-							if message.response_requested:
-								self.debugLog("Oops!  Client wants a response")
-				
-				elif message.message_type == MSG_IDS[GetHostInfo]:													# 12
-					self.debugLog("Responding to GetHostInfo message")
-
-					for devID, alias in self.publishedDevices.items():
-					
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							
-							payload = {"signal":"0","tx":"0","rx":"0","reserved1":"0"}
-							replyMessage = StateHostInfo(message.target_addr, source, seq_num, payload, False, False)
-							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-							if message.ack_requested:
-								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-				elif message.message_type == MSG_IDS[StateHostInfo]:												# 13
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("StateHostInfo message for device " + devID + " - not supported!")
-							
-							if message.ack_requested:
-								self.debugLog("Oops!  Client wants an ACK")
-							if message.response_requested:
-								self.debugLog("Oops!  Client wants a response")
-				
-				elif message.message_type == MSG_IDS[GetHostFirmware]:												# 14
-					self.debugLog("Responding to GetHostFirmware message")
-
-					for devID, alias in self.publishedDevices.items():
-					
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							
-							payload = {"build":"1428977151000000000","reserved1":"1428977151000000000","version":"65538"}
-							replyMessage = StateHostFirmware(message.target_addr, source, seq_num, payload, False, False)
-							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-							if message.ack_requested:
-								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-				elif message.message_type == MSG_IDS[StateHostFirmware]:											# 15
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("StateHostFirmware message for device " + devID + " - not supported!")
-							
-							if message.ack_requested:
-								self.debugLog("Oops!  Client wants an ACK")
-							if message.response_requested:
-								self.debugLog("Oops!  Client wants a response")
-				
-				elif message.message_type == MSG_IDS[GetWifiInfo]:													# 16
-					self.debugLog("Responding to GetWifiInfo message")
-
-					for devID, alias in self.publishedDevices.items():
-					
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
-							
-							payload = {"signal":"944912011","tx":"3397400","rx":"23670","reserved1":"3010"}
-							replyMessage = StateWifiInfo(message.target_addr, source, seq_num, payload, False, False) 
-							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-							if message.ack_requested:
-								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-				elif message.message_type == MSG_IDS[StateWifiInfo]:												# 17
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("StateWifiInfo message for device " + devID + " - not supported!")
-							
-							if message.ack_requested:
-								self.debugLog("Oops!  Client wants an ACK")
-							if message.response_requested:
-								self.debugLog("Oops!  Client wants a response")
-				
-				elif message.message_type == MSG_IDS[GetWifiFirmware]:												# 18
-					self.debugLog("Responding to GetWifiFirmware message")
-
-					for devID, alias in self.publishedDevices.items():
-					
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
-							
-							payload = {"build":"0","reserved1":"0","version":"6619161"}
-							replyMessage = StateWifiFirmware(message.target_addr, source, seq_num, payload, False, False)
-							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-							if message.ack_requested:
-								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-				elif message.message_type == MSG_IDS[StateWifiFirmware]:											# 19
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("StateWifiFirmware message for device " + devID + " - not supported!")
-							
-							if message.ack_requested:
-								self.debugLog("Oops!  Client wants an ACK")
-							if message.response_requested:
-								self.debugLog("Oops!  Client wants a response")
-				
-				elif message.message_type == MSG_IDS[GetPower]:														# 20
-					self.debugLog("Responding to GetPower message")
-
-					for devID, alias in self.publishedDevices.items():
-					
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
-							
-							if indigo.devices[devID].onState:
-								level = "65535"
-							else:
-								level = "0"
-							payload = {"power_level":level}
-							replyMessage = StatePower(message.target_addr, source, seq_num, payload, False, False)
-							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-							if message.ack_requested:
-								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-				elif message.message_type == MSG_IDS[SetPower]:														# 21
-					self.debugLog("\nHandling SetPower message")
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("\tCommand is for device: " + indigo.devices[devID].name)							
-					
-							for field in message.payload_fields:
-								if field[0] == "Power":
-									self.turnOnOffDevice(devID, field[1])
-									break
-
-					if message.ack_requested:
-						replyMessage = Acknowledgement(message.target_addr, source, seq_num, None, False, False) 
-						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-					if message.response_requested:
-						self.debugLog("Oops!  Client wants a response")
-
-					self.debugLog("Done Handling SetPower message")
-												
-				elif message.message_type == MSG_IDS[StatePower]:													# 22
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("StatePower message for device " + devID + " - not supported!")
-							
-							if message.ack_requested:
-								self.debugLog("Oops!  Client wants an ACK")
-							if message.response_requested:
-								self.debugLog("Oops!  Client wants a response")
-				
-				elif message.message_type == MSG_IDS[GetLabel]:														# 23
-					self.debugLog("Responding to GetLabel message")
-
-					for devID, alias in self.publishedDevices.items():
-					
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY] or message.tagged:
-							try:
-								label = indigo.devices[devID].pluginProps[ALT_NAME_KEY]
-							except:
-								label = indigo.devices[devID].name
-								
-							payload = {"label":label}
-							replyMessage = StateLabel(message.target_addr, source, seq_num, payload, False, False)
-							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-							if message.ack_requested:
-								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-				elif message.message_type == MSG_IDS[SetLabel]:														# 24
-					self.debugLog("SetLabel message - not supported!")
-
-					if message.ack_requested:
-						for devID, alias in self.publishedDevices.items():
-					
-							if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
-
-								replyMessage = Acknowledgement(message.target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-								
-					if message.response_requested:
-						self.debugLog("Oops!  Client wants a response")
-				
-				elif message.message_type == MSG_IDS[StateLabel]:													# 25
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("StateLabel message for device " + devID + " - not supported!")
-							
-							if message.ack_requested:
-								self.debugLog("Oops!  Client wants an ACK")
-							if message.response_requested:
-								self.debugLog("Oops!  Client wants a response")
-				
-				elif message.message_type == MSG_IDS[GetVersion]:													# 32
-					self.debugLog("Responding to GetVersion message")
-
-					for devID, alias in self.publishedDevices.items():
-					
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
-							
-							payload = {"vendor":"1","product":"10","version":"0"}
-							replyMessage = StateVersion(message.target_addr, source, seq_num, payload, False, False) 
-							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-							if message.ack_requested:
-								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-				elif message.message_type == MSG_IDS[StateVersion]:													# 33
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("StateVersion message for device " + devID + " - not supported!")
-							
-							if message.ack_requested:
-								self.debugLog("Oops!  Client wants an ACK")
-							if message.response_requested:
-								self.debugLog("Oops!  Client wants a response")
-				
-				elif message.message_type == MSG_IDS[GetInfo]:														# 34
-					self.debugLog("Responding to GetInfo message")
-
-					time_s = str(int(time.time() * 1000000000))
-
-					for devID, alias in self.publishedDevices.items():
-					
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
-							payload = {"time":time_s,"uptime":"1243200000000","downtime":"0"}
-							replyMessage = StateInfo(message.target_addr, source, seq_num, payload, False, False) 
-							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-							if message.ack_requested:
-								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-				elif message.message_type == MSG_IDS[StateInfo]:													# 35
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("StateInfo message for device " + devID + " - not supported!")
-							
-							if message.ack_requested:
-								self.debugLog("Oops!  Client wants an ACK")
-							if message.response_requested:
-								self.debugLog("Oops!  Client wants a response")
-
-				elif message.message_type == MSG_IDS[Acknowledgement]:												# 45
-					self.debugLog("\nGot an ACK message.  Don't know why.")
-					if message.ack_requested:
-						self.debugLog("Oops!  Client wants an ACK")
-					if message.response_requested:
-						self.debugLog("Oops!  Client wants a response")
-
-				elif message.message_type == MSG_IDS[EchoRequest]:													# 58
-					self.debugLog("Responding to EchoRequest message")
-
-					payload = message.payload_fields			
-					for devID, alias in self.publishedDevices.items():
-						target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
-						replyMessage = EchoReply(target_addr, source, seq_num, payload, False, False) 
-						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-						if message.ack_requested:
-							replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-				elif message.message_type == MSG_IDS[EchoResponse]:													# 59
-					self.debugLog("\nGot an EchoResponse message.  Don't know why.")
-					if message.ack_requested:
-						self.debugLog("Oops!  Client wants an ACK")
-					if message.response_requested:
-						self.debugLog("Oops!  Client wants a response")
-
-				elif message.message_type == MSG_IDS[LightGet]:														# 101
-					self.debugLog("Responding to LightGet message")
-
-					for devID, alias in self.publishedDevices.items():
-					
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY] or message.tagged:
-							
-							# need to adjust this for dimmer value
-							
-							if indigo.devices[devID].onState:
-								power = "65535"
-							else:
-								power = "0"
-
-							try:
-								label = indigo.devices[devID].pluginProps[ALT_NAME_KEY]
-							except:
-								label = indigo.devices[devID].name
-								
-							payload = {"color": ("16200", "130", "65535", "3000"),"reserved1":"0","power_level":power,"label":label,"reserved2":"0"}
-							target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
-							replyMessage = LightState(target_addr, source, seq_num, payload, False, False) 
-							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-							if message.ack_requested:
-								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-				elif message.message_type == MSG_IDS[LightSetColor]:												# 102
-					self.debugLog("Responding to LightSetPower message, target_addr = " + message.target_addr)
-					self.debugLog("\tLightSetPower not implemented yet. Payload = " + str(message.payload_fields))
-
-					if message.ack_requested:
-						for devID, alias in self.publishedDevices.items():
-					
-							if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY] or message.tagged:
-
-								target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
-								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-					if message.response_requested:
-						self.debugLog("Oops!  Client wants a response")
-		
-				elif message.message_type == MSG_IDS[LightState]:													# 107
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("LightState message for device " + devID + " - not supported!")
-							
-							if message.ack_requested:
-								self.debugLog("Oops!  Client wants an ACK")
-							if message.response_requested:
-								self.debugLog("Oops!  Client wants a response")
-				
-				elif message.message_type == MSG_IDS[LightGetPower]:												# 116
-					self.debugLog("Responding to LightGetPower message, target_addr = " + message.target_addr)
-
-					for devID, alias in self.publishedDevices.items():
-					
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY] or message.tagged:
-							
-							# need to adjust this for brightness level
-							
-							if indigo.devices[devID].onState:
-								level = "65535"
-							else:
-								level = "0"
-							payload = {"power_level":level}
-							target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
-							replyMessage = LightStatePower(target_addr, source, seq_num, payload, False, False)
-							self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-							if message.ack_requested:
-								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-				elif message.message_type == MSG_IDS[LightSetPower]:												# 117
-					self.debugLog("Responding to LightSetPower message, target_addr = " + message.target_addr)
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("\tCommand is for device: " + indigo.devices[devID].name + ", payload = " + str(message.payload_fields))							
-					
-							for field in message.payload_fields:
-								if field[0] == "Power":
-									self.turnOnOffDevice(devID, field[1])
-									break
-
-					if message.ack_requested:
-						for devID, alias in self.publishedDevices.items():
-					
-							if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY] or message.tagged:
-
-								target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
-								replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-
-					if message.response_requested:
-						for devID, alias in self.publishedDevices.items():
-					
-							if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY] or message.tagged:
-
-								# need to adjust this for brightness level
-							
-								if indigo.devices[devID].onState:
-									level = "65535"
-								else:
-									level = "0"
-								payload = {"power_level":level}
-								target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
-								replyMessage = LightStatePower(target_addr, source, seq_num, payload, False, False)
-								self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
-				
-				elif message.message_type == MSG_IDS[LightStatePower]:												# 118
-
-					for devID, alias in self.publishedDevices.items():
-						if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-							self.debugLog("LightStatePower message for device " + devID + " - not supported!")
-							
-							if message.ack_requested:
-								self.debugLog("Oops!  Client wants an ACK")
-							if message.response_requested:
-								self.debugLog("Oops!  Client wants a response")
+				except socket.error , msg:
+					self.debugLog('Socket recvfrom failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
 
 				else:
-					self.debugLog("Uknown message type from " + ip_addr + ":" + str(port) + ":\n" + str(message))
-					
+					message = unpack_lifx_message(data)
+					self.respond(message, ip_addr, port)
+
+			else:
+				sleep (60)
+									
 			if self.stopThread:
 				break
 							
@@ -715,43 +283,6 @@ class Plugin(indigo.PluginBase):
 			returnList = sorted(returnList, key= lambda item: item[1])
 		return returnList
 
-
-	########################################
-	# Method called from bridge thread to turn on/off a device
-	#
-	#	deviceId is the ID of the device in Indigo
-	#	turnOn is a boolean to indicate on/off
-	########################################
-	def turnOnOffDevice(self, deviceId, turnOn):
-		indigo.server.log(u"Set on state of device %i to %s" % (deviceId, str(turnOn)))
-		try:
-			if turnOn:
-				indigo.device.turnOn(deviceId)
-			else:
-				indigo.device.turnOff(deviceId)
-		except:
-			self.errorLog(u"Device with id %i doesn't exist. The device list will be rebuilt." % deviceId)
-			self.refreshDeviceList()
-
-	########################################
-	# Method called from bridge thread to set brightness of a device
-	#
-	#	deviceId is the ID of the device in Indigo
-	#	brightness is the brightness in the range 0-100
-	########################################
-	def setDeviceBrightness(self, deviceId, brightness):
-		try:
-			dev = indigo.devices[deviceId]
-		except:
-			self.errorLog(u"Device with id %i doesn't exist. The device list will be rebuilt." % deviceId)
-			self.refreshDeviceList()
-			return
-		if isinstance(dev, indigo.DimmerDevice):
-			indigo.server.log(u"Set brightness of device %i to %i" % (deviceId, brightness))
-			indigo.dimmer.setBrightness(dev, value=brightness)
-		else:
-			self.errorLog(u"Device with id %i doesn't support dimming." % deviceId)
-
 	########################################
 	# Actions defined in MenuItems.xml:
 	########################################
@@ -772,4 +303,484 @@ class Plugin(indigo.PluginBase):
 
 	def forceUpdate(self):
 		self.updater.update(currentVersion='0.0.0')
+	
+#
+#	Methods that deal with LIFX protocol messages
+
+	def	respond(self, message, ip_addr, port):
+
+		source = message.source_id
+		seq_num = message.seq_num
+
+		if message.message_type == MSG_IDS[GetService]:														# 2
+			self.debugLog("Responding to GetService message")
+
+			payload = {"service": "1", "port": "56700"}
+		
+			for devID, alias in self.publishedDevices.items():
+				target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
+				replyMessage = StateService(target_addr, source, seq_num, payload, False, False) 
+				self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 			
+				if message.ack_requested:
+					replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+					self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+			# repeat with service 5?  The bulbs do.
+		
+		
+		elif message.message_type == MSG_IDS[StateService]:													# 3
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("StateService message for device " + devID + " - not supported!")
+				
+					if message.ack_requested:
+						self.debugLog("Oops!  Client wants an ACK")
+					if message.response_requested:
+						self.debugLog("Oops!  Client wants a response")
+	
+		elif message.message_type == MSG_IDS[GetHostInfo]:													# 12
+			self.debugLog("Responding to GetHostInfo message")
+
+			for devID, alias in self.publishedDevices.items():
+		
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+				
+					payload = {"signal":"0","tx":"0","rx":"0","reserved1":"0"}
+					replyMessage = StateHostInfo(message.target_addr, source, seq_num, payload, False, False)
+					self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+					if message.ack_requested:
+						replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+		elif message.message_type == MSG_IDS[StateHostInfo]:												# 13
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("StateHostInfo message for device " + devID + " - not supported!")
+				
+					if message.ack_requested:
+						self.debugLog("Oops!  Client wants an ACK")
+					if message.response_requested:
+						self.debugLog("Oops!  Client wants a response")
+	
+		elif message.message_type == MSG_IDS[GetHostFirmware]:												# 14
+			self.debugLog("Responding to GetHostFirmware message")
+
+			for devID, alias in self.publishedDevices.items():
+		
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+				
+					payload = {"build":"1428977151000000000","reserved1":"1428977151000000000","version":"65538"}
+					replyMessage = StateHostFirmware(message.target_addr, source, seq_num, payload, False, False)
+					self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+					if message.ack_requested:
+						replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+		elif message.message_type == MSG_IDS[StateHostFirmware]:											# 15
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("StateHostFirmware message for device " + devID + " - not supported!")
+				
+					if message.ack_requested:
+						self.debugLog("Oops!  Client wants an ACK")
+					if message.response_requested:
+						self.debugLog("Oops!  Client wants a response")
+	
+		elif message.message_type == MSG_IDS[GetWifiInfo]:													# 16
+			self.debugLog("Responding to GetWifiInfo message")
+
+			for devID, alias in self.publishedDevices.items():
+		
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
+				
+					payload = {"signal":"944912011","tx":"3397400","rx":"23670","reserved1":"3010"}
+					replyMessage = StateWifiInfo(message.target_addr, source, seq_num, payload, False, False) 
+					self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+					if message.ack_requested:
+						replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+		elif message.message_type == MSG_IDS[StateWifiInfo]:												# 17
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("StateWifiInfo message for device " + devID + " - not supported!")
+				
+					if message.ack_requested:
+						self.debugLog("Oops!  Client wants an ACK")
+					if message.response_requested:
+						self.debugLog("Oops!  Client wants a response")
+	
+		elif message.message_type == MSG_IDS[GetWifiFirmware]:												# 18
+			self.debugLog("Responding to GetWifiFirmware message")
+
+			for devID, alias in self.publishedDevices.items():
+		
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
+				
+					payload = {"build":"0","reserved1":"0","version":"6619161"}
+					replyMessage = StateWifiFirmware(message.target_addr, source, seq_num, payload, False, False)
+					self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+					if message.ack_requested:
+						replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+		elif message.message_type == MSG_IDS[StateWifiFirmware]:											# 19
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("StateWifiFirmware message for device " + devID + " - not supported!")
+				
+					if message.ack_requested:
+						self.debugLog("Oops!  Client wants an ACK")
+					if message.response_requested:
+						self.debugLog("Oops!  Client wants a response")
+	
+		elif message.message_type == MSG_IDS[GetPower]:														# 20
+			self.debugLog("Responding to GetPower message")
+
+			for devID, alias in self.publishedDevices.items():
+		
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
+				
+					if indigo.devices[devID].onState:
+						level = "65535"
+					else:
+						level = "0"
+					payload = {"power_level":level}
+					replyMessage = StatePower(message.target_addr, source, seq_num, payload, False, False)
+					self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+					if message.ack_requested:
+						replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+		elif message.message_type == MSG_IDS[SetPower]:														# 21
+			self.debugLog("\nHandling SetPower message")
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("\tCommand is for device: " + indigo.devices[devID].name)							
+		
+					for field in message.payload_fields:
+						if field[0] == "Power":
+							self.turnOnOffDevice(devID, field[1])
+							break
+
+			if message.ack_requested:
+				replyMessage = Acknowledgement(message.target_addr, source, seq_num, None, False, False) 
+				self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+			if message.response_requested:
+				self.debugLog("Oops!  Client wants a response")
+
+			self.debugLog("Done Handling SetPower message")
+									
+		elif message.message_type == MSG_IDS[StatePower]:													# 22
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("StatePower message for device " + devID + " - not supported!")
+				
+					if message.ack_requested:
+						self.debugLog("Oops!  Client wants an ACK")
+					if message.response_requested:
+						self.debugLog("Oops!  Client wants a response")
+	
+		elif message.message_type == MSG_IDS[GetLabel]:														# 23
+			self.debugLog("Responding to GetLabel message")
+
+			for devID, alias in self.publishedDevices.items():
+		
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY] or message.tagged:
+					try:
+						label = indigo.devices[devID].pluginProps[ALT_NAME_KEY]
+					except:
+						label = indigo.devices[devID].name
+					
+					payload = {"label":label}
+					replyMessage = StateLabel(message.target_addr, source, seq_num, payload, False, False)
+					self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+					if message.ack_requested:
+						replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+		elif message.message_type == MSG_IDS[SetLabel]:														# 24
+			self.debugLog("SetLabel message - not supported!")
+
+			if message.ack_requested:
+				for devID, alias in self.publishedDevices.items():
+		
+					if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
+
+						replyMessage = Acknowledgement(message.target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+					
+			if message.response_requested:
+				self.debugLog("Oops!  Client wants a response")
+	
+		elif message.message_type == MSG_IDS[StateLabel]:													# 25
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("StateLabel message for device " + devID + " - not supported!")
+				
+					if message.ack_requested:
+						self.debugLog("Oops!  Client wants an ACK")
+					if message.response_requested:
+						self.debugLog("Oops!  Client wants a response")
+	
+		elif message.message_type == MSG_IDS[GetVersion]:													# 32
+			self.debugLog("Responding to GetVersion message")
+
+			for devID, alias in self.publishedDevices.items():
+		
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
+				
+					payload = {"vendor":"1","product":"10","version":"0"}
+					replyMessage = StateVersion(message.target_addr, source, seq_num, payload, False, False) 
+					self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+					if message.ack_requested:
+						replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+		elif message.message_type == MSG_IDS[StateVersion]:													# 33
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("StateVersion message for device " + devID + " - not supported!")
+				
+					if message.ack_requested:
+						self.debugLog("Oops!  Client wants an ACK")
+					if message.response_requested:
+						self.debugLog("Oops!  Client wants a response")
+	
+		elif message.message_type == MSG_IDS[GetInfo]:														# 34
+			self.debugLog("Responding to GetInfo message")
+
+			time_s = str(int(time.time() * 1000000000))
+
+			for devID, alias in self.publishedDevices.items():
+		
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:	# reply with info for requested device
+					payload = {"time":time_s,"uptime":"1243200000000","downtime":"0"}
+					replyMessage = StateInfo(message.target_addr, source, seq_num, payload, False, False) 
+					self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+					if message.ack_requested:
+						replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+		elif message.message_type == MSG_IDS[StateInfo]:													# 35
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("StateInfo message for device " + devID + " - not supported!")
+				
+					if message.ack_requested:
+						self.debugLog("Oops!  Client wants an ACK")
+					if message.response_requested:
+						self.debugLog("Oops!  Client wants a response")
+
+		elif message.message_type == MSG_IDS[Acknowledgement]:												# 45
+			self.debugLog("\nGot an ACK message.  Don't know why.")
+			if message.ack_requested:
+				self.debugLog("Oops!  Client wants an ACK")
+			if message.response_requested:
+				self.debugLog("Oops!  Client wants a response")
+
+		elif message.message_type == MSG_IDS[EchoRequest]:													# 58
+			self.debugLog("Responding to EchoRequest message")
+
+			payload = message.payload_fields			
+			for devID, alias in self.publishedDevices.items():
+				target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
+				replyMessage = EchoReply(target_addr, source, seq_num, payload, False, False) 
+				self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+				if message.ack_requested:
+					replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+					self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+		elif message.message_type == MSG_IDS[EchoResponse]:													# 59
+			self.debugLog("\nGot an EchoResponse message.  Don't know why.")
+			if message.ack_requested:
+				self.debugLog("Oops!  Client wants an ACK")
+			if message.response_requested:
+				self.debugLog("Oops!  Client wants a response")
+
+		elif message.message_type == MSG_IDS[LightGet]:														# 101
+			self.debugLog("Responding to LightGet message")
+
+			for devID, alias in self.publishedDevices.items():
+		
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY] or message.tagged:
+				
+					# need to adjust this for dimmer value
+				
+					if indigo.devices[devID].onState:
+						power = "65535"
+					else:
+						power = "0"
+
+					try:
+						label = indigo.devices[devID].pluginProps[ALT_NAME_KEY]
+					except:
+						label = indigo.devices[devID].name
+					
+					payload = {"color": ("16200", "130", "65535", "3000"),"reserved1":"0","power_level":power,"label":label,"reserved2":"0"}
+					target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
+					replyMessage = LightState(target_addr, source, seq_num, payload, False, False) 
+					self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+					if message.ack_requested:
+						replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+		elif message.message_type == MSG_IDS[LightSetColor]:												# 102
+			self.debugLog("Responding to LightSetPower message, target_addr = " + message.target_addr)
+			self.debugLog("\tLightSetPower not implemented yet. Payload = " + str(message.payload_fields))
+
+			if message.ack_requested:
+				for devID, alias in self.publishedDevices.items():
+		
+					if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY] or message.tagged:
+
+						target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
+						replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+			if message.response_requested:
+				self.debugLog("Oops!  Client wants a response")
+
+		elif message.message_type == MSG_IDS[LightState]:													# 107
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("LightState message for device " + devID + " - not supported!")
+				
+					if message.ack_requested:
+						self.debugLog("Oops!  Client wants an ACK")
+					if message.response_requested:
+						self.debugLog("Oops!  Client wants a response")
+	
+		elif message.message_type == MSG_IDS[LightGetPower]:												# 116
+			self.debugLog("Responding to LightGetPower message, target_addr = " + message.target_addr)
+
+			for devID, alias in self.publishedDevices.items():
+		
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY] or message.tagged:
+				
+					# need to adjust this for brightness level
+				
+					if indigo.devices[devID].onState:
+						level = "65535"
+					else:
+						level = "0"
+					payload = {"power_level":level}
+					target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
+					replyMessage = LightStatePower(target_addr, source, seq_num, payload, False, False)
+					self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+					if message.ack_requested:
+						replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+		elif message.message_type == MSG_IDS[LightSetPower]:												# 117
+			self.debugLog("Responding to LightSetPower message, target_addr = " + message.target_addr)
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("\tCommand is for device: " + indigo.devices[devID].name + ", payload = " + str(message.payload_fields))							
+		
+					for field in message.payload_fields:
+						if field[0] == "Power":
+							self.turnOnOffDevice(devID, field[1])
+							break
+
+			if message.ack_requested:
+				for devID, alias in self.publishedDevices.items():
+		
+					if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY] or message.tagged:
+
+						target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
+						replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False) 
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+			if message.response_requested:
+				for devID, alias in self.publishedDevices.items():
+		
+					if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY] or message.tagged:
+
+						# need to adjust this for brightness level
+				
+						if indigo.devices[devID].onState:
+							level = "65535"
+						else:
+							level = "0"
+						payload = {"power_level":level}
+						target_addr = indigo.devices[devID].pluginProps[MAC_KEY]					
+						replyMessage = LightStatePower(target_addr, source, seq_num, payload, False, False)
+						self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+	
+		elif message.message_type == MSG_IDS[LightStatePower]:												# 118
+
+			for devID, alias in self.publishedDevices.items():
+				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+					self.debugLog("LightStatePower message for device " + devID + " - not supported!")
+				
+					if message.ack_requested:
+						self.debugLog("Oops!  Client wants an ACK")
+					if message.response_requested:
+						self.debugLog("Oops!  Client wants a response")
+
+		else:
+			self.debugLog("Uknown message type from " + ip_addr + ":" + str(port) + ":\n" + str(message))
+		
+
+	########################################
+	# Method called from respond() to turn on/off a device
+	#
+	#	deviceId is the ID of the device in Indigo
+	#	turnOn is a boolean to indicate on/off
+	########################################
+	def turnOnOffDevice(self, deviceId, turnOn):
+		indigo.server.log(u"Set on state of device %i to %s" % (deviceId, str(turnOn)))
+		try:
+			if turnOn:
+				indigo.device.turnOn(deviceId)
+			else:
+				indigo.device.turnOff(deviceId)
+		except:
+			self.errorLog(u"Device with id %i doesn't exist. The device list will be rebuilt." % deviceId)
+			self.refreshDeviceList()
+
+	########################################
+	# Method called from respond() to set brightness of a device
+	#
+	#	deviceId is the ID of the device in Indigo
+	#	brightness is the brightness in the range 0-100
+	########################################
+	def setDeviceBrightness(self, deviceId, brightness):
+		try:
+			dev = indigo.devices[deviceId]
+		except:
+			self.errorLog(u"Device with id %i doesn't exist. The device list will be rebuilt." % deviceId)
+			self.refreshDeviceList()
+			return
+		if isinstance(dev, indigo.DimmerDevice):
+			indigo.server.log(u"Set brightness of device %i to %i" % (deviceId, brightness))
+			indigo.dimmer.setBrightness(dev, value=brightness)
+		else:
+			self.errorLog(u"Device with id %i doesn't support dimming." % deviceId)
+
