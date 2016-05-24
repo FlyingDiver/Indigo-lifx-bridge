@@ -4,10 +4,13 @@
 
 import socket
 import time
+from random import randint
+import json
 
 from lifxlan.msgtypes import *
 from lifxlan.unpack import unpack_lifx_message
 from lifxlan.message import Message, BROADCAST_MAC, HEADER_SIZE_BYTES, little_endian
+from lifxlan.device import UDP_BROADCAST_IP, UDP_BROADCAST_PORT
 
 from ghpu import GitHubPluginUpdater
 
@@ -23,6 +26,7 @@ except:
 PUBLISHED_KEY = "published"
 ALT_NAME_KEY = "alternate-name"
 MAC_KEY = "fakeMAC"
+TARGET_KEY = "target"
 
 DEFAULT_LIFX_PORT = 56700
 
@@ -73,7 +77,7 @@ class Plugin(indigo.PluginBase):
 		except socket.error , msg:
 			self.debugLog('Bind failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
 			return
-	  				
+					
 	def shutdown(self):
 		indigo.server.log(u"Shutting down LIFX Bridge")
 		self.sock.close()
@@ -100,10 +104,10 @@ class Plugin(indigo.PluginBase):
 
 				else:
 					message = unpack_lifx_message(data)
-					self.respond(message, ip_addr, port)
+					self.lifxRespond(message, ip_addr, port)
 
 			else:
-				sleep (60)
+				time.sleep(1)
 									
 			if self.stopThread:
 				break
@@ -111,6 +115,32 @@ class Plugin(indigo.PluginBase):
 							
 	def stopConcurrentThread(self):
 		self.stopThread = True
+		
+
+	########################################
+	def validateDeviceConfigUi(self, valuesDict, typeId, devId):
+
+		if typeId != "lifxBulb":
+			self.debugLog('validateDeviceConfigUi, wrong typeId = ' + typeId)
+			return (False, valuesDict)
+					
+		target = valuesDict[TARGET_KEY]
+		valuesDict["lifxLabel"] = self.foundLIFX[target]["label"]
+		valuesDict["last_ip"] = self.foundLIFX[target]["ip_addr"]
+		self.debugLog('validateDeviceConfigUi, valuesDict = ' + str(valuesDict))
+		return (True, valuesDict)
+
+	########################################
+	def deviceStartComm(self, dev):
+		self.debugLog('deviceStartComm: ' + dev.name)
+		self.debugLog('deviceStartComm, pluginProps = ' + str(dev.pluginProps))
+		return
+		
+	########################################
+	def deviceStopComm(self, dev):
+		self.debugLog('deviceStopComm: ' + dev.name)
+		return
+		
 		
 
 	########################################
@@ -167,9 +197,9 @@ class Plugin(indigo.PluginBase):
 		for dev in indigo.devices:
 			props = dev.pluginProps
 			if PUBLISHED_KEY in props:
-				self.debugLog(u"found published device: %i - %s" % (dev.id, dev.name))
 				self.publishedDevices[dev.id] = props.get(ALT_NAME_KEY, "")
-		indigo.server.log(u"%i devices published" % len(self.publishedDevices))
+				self.debugLog(u"found published device: %i - %s (%s) - %s" % (dev.id, dev.name, self.publishedDevices[dev.id], props[MAC_KEY]))
+		self.debugLog(u"%i devices published" % len(self.publishedDevices))
 
 	########################################
 	# This method is called to generate a list of devices that support onState only.
@@ -303,11 +333,263 @@ class Plugin(indigo.PluginBase):
 
 	def forceUpdate(self):
 		self.updater.update(currentVersion='0.0.0')
-	
-#
-#	Methods that deal with LIFX protocol messages
 
-	def	respond(self, message, ip_addr, port):
+	########################################
+	# ConfigUI methods
+	########################################
+
+	def deviceListGenerator(self, filter="", valuesDict=None, typeId="", targetId=0):
+		deviceList = self.lifxDiscover()
+		self.debugLog("deviceListGenerator:\n" + str(deviceList))		
+		return deviceList
+
+	########################################
+	# Relay / Dimmer Action callback
+	######################
+	def actionControlDimmerRelay(self, action, dev):
+		###### TURN ON ######
+		if action.deviceAction == indigo.kDimmerRelayAction.TurnOn:
+			# Command hardware module (dev) to turn ON here:
+			# ** IMPLEMENT ME **
+			sendSuccess = True		# Set to False if it failed.
+
+			if sendSuccess:
+				# If success then log that the command was successfully sent.
+				indigo.server.log(u"sent \"%s\" %s" % (dev.name, "on"))
+
+				# And then tell the Indigo Server to update the state.
+				dev.updateStateOnServer("onOffState", True)
+			else:
+				# Else log failure but do NOT update state on Indigo Server.
+				indigo.server.log(u"send \"%s\" %s failed" % (dev.name, "on"), isError=True)
+
+		###### TURN OFF ######
+		elif action.deviceAction == indigo.kDimmerRelayAction.TurnOff:
+			# Command hardware module (dev) to turn OFF here:
+			# ** IMPLEMENT ME **
+			sendSuccess = True		# Set to False if it failed.
+
+			if sendSuccess:
+				# If success then log that the command was successfully sent.
+				indigo.server.log(u"sent \"%s\" %s" % (dev.name, "off"))
+
+				# And then tell the Indigo Server to update the state:
+				dev.updateStateOnServer("onOffState", False)
+			else:
+				# Else log failure but do NOT update state on Indigo Server.
+				indigo.server.log(u"send \"%s\" %s failed" % (dev.name, "off"), isError=True)
+
+		###### TOGGLE ######
+		elif action.deviceAction == indigo.kDimmerRelayAction.Toggle:
+			# Command hardware module (dev) to toggle here:
+			# ** IMPLEMENT ME **
+			newOnState = not dev.onState
+			sendSuccess = True		# Set to False if it failed.
+
+			if sendSuccess:
+				# If success then log that the command was successfully sent.
+				indigo.server.log(u"sent \"%s\" %s" % (dev.name, "toggle"))
+
+				# And then tell the Indigo Server to update the state:
+				dev.updateStateOnServer("onOffState", newOnState)
+			else:
+				# Else log failure but do NOT update state on Indigo Server.
+				indigo.server.log(u"send \"%s\" %s failed" % (dev.name, "toggle"), isError=True)
+
+		###### SET BRIGHTNESS ######
+		elif action.deviceAction == indigo.kDimmerRelayAction.SetBrightness:
+			# Command hardware module (dev) to set brightness here:
+			# ** IMPLEMENT ME **
+			newBrightness = action.actionValue
+			sendSuccess = True		# Set to False if it failed.
+
+			if sendSuccess:
+				# If success then log that the command was successfully sent.
+				indigo.server.log(u"sent \"%s\" %s to %d" % (dev.name, "set brightness", newBrightness))
+
+				# And then tell the Indigo Server to update the state:
+				dev.updateStateOnServer("brightnessLevel", newBrightness)
+			else:
+				# Else log failure but do NOT update state on Indigo Server.
+				indigo.server.log(u"send \"%s\" %s to %d failed" % (dev.name, "set brightness", newBrightness), isError=True)
+
+		###### BRIGHTEN BY ######
+		elif action.deviceAction == indigo.kDimmerRelayAction.BrightenBy:
+			# Command hardware module (dev) to do a relative brighten here:
+			# ** IMPLEMENT ME **
+			newBrightness = dev.brightness + action.actionValue
+			if newBrightness > 100:
+				newBrightness = 100
+			sendSuccess = True		# Set to False if it failed.
+
+			if sendSuccess:
+				# If success then log that the command was successfully sent.
+				indigo.server.log(u"sent \"%s\" %s to %d" % (dev.name, "brighten", newBrightness))
+
+				# And then tell the Indigo Server to update the state:
+				dev.updateStateOnServer("brightnessLevel", newBrightness)
+			else:
+				# Else log failure but do NOT update state on Indigo Server.
+				indigo.server.log(u"send \"%s\" %s to %d failed" % (dev.name, "brighten", newBrightness), isError=True)
+
+		###### DIM BY ######
+		elif action.deviceAction == indigo.kDimmerRelayAction.DimBy:
+			# Command hardware module (dev) to do a relative dim here:
+			# ** IMPLEMENT ME **
+			newBrightness = dev.brightness - action.actionValue
+			if newBrightness < 0:
+				newBrightness = 0
+			sendSuccess = True		# Set to False if it failed.
+
+			if sendSuccess:
+				# If success then log that the command was successfully sent.
+				indigo.server.log(u"sent \"%s\" %s to %d" % (dev.name, "dim", newBrightness))
+
+				# And then tell the Indigo Server to update the state:
+				dev.updateStateOnServer("brightnessLevel", newBrightness)
+			else:
+				# Else log failure but do NOT update state on Indigo Server.
+				indigo.server.log(u"send \"%s\" %s to %d failed" % (dev.name, "dim", newBrightness), isError=True)
+
+	########################################
+	# General Action callback
+	######################
+	def actionControlGeneral(self, action, dev):
+
+		###### STATUS REQUEST ######
+		if action.deviceAction == indigo.kDeviceGeneralAction.RequestStatus:
+			# Query hardware module (dev) for its current status here:
+			# ** IMPLEMENT ME **
+			indigo.server.log(u"sent \"%s\" %s" % (dev.name, "status request"))
+
+	########################################
+	# Custom Plugin Action callbacks (defined in Actions.xml)
+	######################
+	def setColor(self, pluginAction, dev):
+		try:
+			newColor = int(pluginAction.props.get(u"color", 100))
+		except ValueError:
+			# The int() cast above might fail if the user didn't enter a number:
+			indigo.server.log(u"set color action to device \"%s\" -- invalid color value" % (dev.name,), isError=True)
+			return
+
+		# Command hardware module (dev) to set color here:
+		# ** IMPLEMENT ME **
+		sendSuccess = True		# Set to False if it failed.
+
+		if sendSuccess:
+			# If success then log that the command was successfully sent.
+			indigo.server.log(u"sent \"%s\" %s to %d" % (dev.name, "set color", newBrightness))
+
+			# And then tell the Indigo Server to update the state:
+			dev.updateStateOnServer("backlightBrightness", newBrightness)
+		else:
+			# Else log failure but do NOT update state on Indigo Server.
+			indigo.server.log(u"send \"%s\" %s to %d failed" % (dev.name, "set color", newBrightness), isError=True)
+	
+	
+	########################################
+	#	Methods that deal with LIFX protocol messages
+	########################################
+
+	def lifxDiscover(self, timeout_secs=0.3, num_repeats=2):
+
+		self.debugLog('Starting device discovery')
+		source_id = randint(0, (2**32)-1)
+	
+		try :
+			self.dsock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+			self.dsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+			self.dsock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+			
+		except socket.error, msg :
+			self.debugLog('Failed to create discovery socket. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
+			return
+ 
+		try:
+			self.dsock.settimeout(timeout_secs)
+			self.dsock.bind(("", 0))
+		except socket.error , msg:
+			self.debugLog('Bind failed for discovery socket. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
+			return
+					
+		serviceMsg = GetService(BROADCAST_MAC, source_id, seq_num=0, payload={}, ack_requested=False, response_requested=True)	
+		responses = []
+		addr_seen = []
+		attempts = 0
+		while attempts < num_repeats:
+			sent = False
+			start_time = time.time()
+			timedout = False
+			while not timedout:
+				if not sent:
+					self.dsock.sendto(serviceMsg.packed_message, (UDP_BROADCAST_IP, UDP_BROADCAST_PORT))
+					sent = True
+				try: 
+					data, (ip_addr, port) = self.dsock.recvfrom(1024)
+					response = unpack_lifx_message(data)
+					response.ip_addr = ip_addr
+					
+					if type(response) == StateService and response.origin == 1 and response.source_id == source_id:
+						self.debugLog('Got StateService response from: ' + response.target_addr)
+						labelMsg = GetLabel(response.target_addr, source_id, seq_num=0, payload={}, ack_requested=False, response_requested=True)	
+						self.dsock.sendto(labelMsg.packed_message, (response.ip_addr, UDP_BROADCAST_PORT))
+							
+					if type(response) == StateLabel and response.origin == 1 and response.source_id == source_id:
+						self.debugLog('Got StateLabel response from: ' + response.target_addr)
+						if response.target_addr not in addr_seen and response.target_addr != BROADCAST_MAC:
+							addr_seen.append(response.target_addr)
+							responses.append(response)
+							
+				except socket.timeout:
+					pass
+					
+				elapsed_time = time.time() - start_time
+				timedout = True if elapsed_time > timeout_secs else False
+			attempts += 1
+
+		self.dsock.close()
+		self.debugLog('Initial discovery found %i devices' % len(responses))
+			
+		# now filter out the devices this plugin is advertising for the bridge (no loops!) and add to bulb list
+		
+		deviceList = []
+		self.foundLIFX = {}
+		
+		for response in responses:
+			self.debugLog('Looking in published and existing device lists for: ' + response.target_addr)
+
+			for deviceId, name in self.publishedDevices.items():
+				dev = indigo.devices[deviceId]
+				fakeMAC = dev.pluginProps[MAC_KEY]
+				self.debugLog('\tPublished device: ' + dev.name + ' (' + fakeMAC + ')')
+				
+				if response.target_addr == fakeMAC:
+					self.debugLog('\t\tSkipping ' + response.target_addr)
+					break
+			else:
+
+				for dev in indigo.devices.iter("com.flyingdiver.indigoplugin.lifxbridge"):
+					target = dev.pluginProps.get("target", "")
+					self.debugLog('\tExisting device: ' + dev.name + ' (' + target + ')')
+					if target == response.target_addr:
+						self.debugLog('\t\tSkipping ' + response.target_addr)
+						break
+						
+				else:
+					label = response.payload_fields[0][1]
+					label = label.rstrip(' \t\r\n\0')
+			
+					self.debugLog('Adding to device list: ' + label + ' (' + response.target_addr + ', ' + response.ip_addr + ')')
+					info = {"label" : label, "address": response.target_addr, "ip_addr": response.ip_addr}
+					self.foundLIFX[response.target_addr] = info
+					deviceList.append((response.target_addr, label))
+							
+		self.debugLog('Discovery found %i usable devices' % len(deviceList))
+		return deviceList
+
+
+	def lifxRespond(self, message, ip_addr, port):
 
 		source = message.source_id
 		seq_num = message.seq_num
@@ -711,7 +993,7 @@ class Plugin(indigo.PluginBase):
 		
 
 	########################################
-	# Method called from respond() to turn on/off a device
+	# Method called from lifxRespond() to turn on/off a device
 	#
 	#	deviceId is the ID of the device in Indigo
 	#	turnOn is a boolean to indicate on/off
@@ -728,7 +1010,7 @@ class Plugin(indigo.PluginBase):
 			self.refreshDeviceList()
 
 	########################################
-	# Method called from respond() to set brightness of a device
+	# Method called from lifxRespond() to set brightness of a device
 	#
 	#	deviceId is the ID of the device in Indigo
 	#	brightness is the brightness in the range 0-100
@@ -747,7 +1029,7 @@ class Plugin(indigo.PluginBase):
 			self.errorLog(u"Device with id %i doesn't support dimming." % deviceId)
 
 	########################################
-	# Method called from respond() to get the brightness of a device
+	# Method called from lifxRespond() to get the brightness of a device
 	#
 	#	deviceId is the ID of the device in Indigo
 	#	brightness is in the range 0-65535 (LIFX range)
@@ -766,7 +1048,7 @@ class Plugin(indigo.PluginBase):
 			return int(dev.onState) * 65535
 
 	########################################
-	# Method called from respond() to get the brightness of a device
+	# Method called from lifxRespond() to get the brightness of a device
 	#
 	#	deviceId is the ID of the device in Indigo
 	#	brightness is in the range 0-65535 (LIFX range)
