@@ -31,7 +31,7 @@ TARGET_KEY = "target"
 DEFAULT_LIFX_PORT = 56700
 
 def fakeMAC(deviceID):
-	hexString = format(deviceID,'06x')
+	hexString = format(deviceID,'08x')
 	macString = ':'.join(s.encode('hex') for s in hexString.decode('hex'))
 	return "00:16:"+ macString
 	
@@ -46,7 +46,7 @@ class Plugin(indigo.PluginBase):
 		self.debugLog(u"Debugging enabled")
 			
 		self.updater = GitHubPluginUpdater(self)
-		self.next_update_check = time.time() + float(self.pluginPrefs['updateFrequency']) * 60.0 * 60.0
+		self.next_update_check = time.time() + float(self.pluginPrefs.get('updateFrequency', 24)) * 60.0 * 60.0
 				
 		self.refreshDeviceList()
 		
@@ -124,16 +124,26 @@ class Plugin(indigo.PluginBase):
 			self.debugLog('validateDeviceConfigUi, wrong typeId = ' + typeId)
 			return (False, valuesDict)
 					
+		for dev in indigo.devices.iter("com.flyingdiver.indigoplugin.lifxbridge"):
+			self.debugLog('validateDeviceConfigUi, dev.id = %i' % dev.id)
+			if dev.id == devId:
+				return (True, valuesDict)
+				
+			target = dev.pluginProps.get("target", "")
+			if target == valuesDict[TARGET_KEY]:
+				self.debugLog('Attempt to create duplicate device: ' + target + ' (' + dev.name + ')')
+				errorDict = indigo.Dict()
+				errorDict["target"] = "You have selected an LIFX device that already exists."
+				return (False, valuesDict, errorDict)
+
 		target = valuesDict[TARGET_KEY]
 		valuesDict["lifxLabel"] = self.foundLIFX[target]["label"]
 		valuesDict["last_ip"] = self.foundLIFX[target]["ip_addr"]
-		self.debugLog('validateDeviceConfigUi, valuesDict = ' + str(valuesDict))
 		return (True, valuesDict)
 
 	########################################
 	def deviceStartComm(self, dev):
 		self.debugLog('deviceStartComm: ' + dev.name)
-		self.debugLog('deviceStartComm, pluginProps = ' + str(dev.pluginProps))
 		return
 		
 	########################################
@@ -156,11 +166,6 @@ class Plugin(indigo.PluginBase):
 				indigo.server.log(u"Debug logging enabled")
 			else:
 				indigo.server.log(u"Debug logging disabled")
-			self.threadDebug = valuesDict.get("showThreadDebugInfo", False)
-			if self.threadDebug:
-				indigo.server.log(u"Thread debug logging enabled")
-			else:
-				indigo.server.log(u"Thread debug logging disabled")
 
 	########################################
 	# The next two methods should catch when a device name changes in Indigo and when a device we have published
@@ -339,19 +344,27 @@ class Plugin(indigo.PluginBase):
 	########################################
 
 	def deviceListGenerator(self, filter="", valuesDict=None, typeId="", targetId=0):
-		deviceList = self.lifxDiscover()
-		self.debugLog("deviceListGenerator:\n" + str(deviceList))		
-		return deviceList
+		return self.lifxDiscover()
 
 	########################################
 	# Relay / Dimmer Action callback
 	######################
 	def actionControlDimmerRelay(self, action, dev):
-		###### TURN ON ######
+
+#		self.debugLog(u"actionControlDimmerRelay, action:\n%s \ndev:\n%s" % (str(action), str(dev)))
+
 		if action.deviceAction == indigo.kDimmerRelayAction.TurnOn:
-			# Command hardware module (dev) to turn ON here:
-			# ** IMPLEMENT ME **
-			sendSuccess = True		# Set to False if it failed.
+			source = randint(0, (2**32)-1)
+			seq_num = 0
+			target_addr = dev.pluginProps["target"]
+			ip_addr = dev.pluginProps["last_ip"]
+			payload = {"power_level": 65535}
+			message = SetPower(target_addr, source, seq_num, payload, False, False)
+			self.sock.sendto(message.packed_message,(ip_addr, UDP_BROADCAST_PORT))
+			time.sleep(0.1)
+			self.sock.sendto(message.packed_message,(ip_addr, UDP_BROADCAST_PORT))
+
+			sendSuccess = True		# Assumed
 
 			if sendSuccess:
 				# If success then log that the command was successfully sent.
@@ -365,9 +378,18 @@ class Plugin(indigo.PluginBase):
 
 		###### TURN OFF ######
 		elif action.deviceAction == indigo.kDimmerRelayAction.TurnOff:
-			# Command hardware module (dev) to turn OFF here:
-			# ** IMPLEMENT ME **
-			sendSuccess = True		# Set to False if it failed.
+
+			source = randint(0, (2**32)-1)
+			seq_num = 0
+			target_addr = dev.pluginProps["target"]
+			ip_addr = dev.pluginProps["last_ip"]
+			payload = {"power_level": 0}
+			message = SetPower(target_addr, source, seq_num, payload, False, False)
+			self.sock.sendto(message.packed_message,(ip_addr, UDP_BROADCAST_PORT))
+			time.sleep(0.1)
+			self.sock.sendto(message.packed_message,(ip_addr, UDP_BROADCAST_PORT))
+
+			sendSuccess = True		# Assumed
 
 			if sendSuccess:
 				# If success then log that the command was successfully sent.
@@ -381,10 +403,23 @@ class Plugin(indigo.PluginBase):
 
 		###### TOGGLE ######
 		elif action.deviceAction == indigo.kDimmerRelayAction.Toggle:
-			# Command hardware module (dev) to toggle here:
-			# ** IMPLEMENT ME **
+
 			newOnState = not dev.onState
-			sendSuccess = True		# Set to False if it failed.
+
+			source = randint(0, (2**32)-1)
+			seq_num = 0
+			target_addr = dev.pluginProps["target"]
+			ip_addr = dev.pluginProps["last_ip"]
+			if newOnState:
+				payload = {"power_level": 65535}
+			else:
+				payload = {"power_level": 0}
+			message = SetPower(target_addr, source, seq_num, payload, False, False)
+			self.sock.sendto(message.packed_message,(ip_addr, UDP_BROADCAST_PORT))
+			time.sleep(0.1)
+			self.sock.sendto(message.packed_message,(ip_addr, UDP_BROADCAST_PORT))
+			
+			sendSuccess = True		# Assumed
 
 			if sendSuccess:
 				# If success then log that the command was successfully sent.
@@ -396,60 +431,6 @@ class Plugin(indigo.PluginBase):
 				# Else log failure but do NOT update state on Indigo Server.
 				indigo.server.log(u"send \"%s\" %s failed" % (dev.name, "toggle"), isError=True)
 
-		###### SET BRIGHTNESS ######
-		elif action.deviceAction == indigo.kDimmerRelayAction.SetBrightness:
-			# Command hardware module (dev) to set brightness here:
-			# ** IMPLEMENT ME **
-			newBrightness = action.actionValue
-			sendSuccess = True		# Set to False if it failed.
-
-			if sendSuccess:
-				# If success then log that the command was successfully sent.
-				indigo.server.log(u"sent \"%s\" %s to %d" % (dev.name, "set brightness", newBrightness))
-
-				# And then tell the Indigo Server to update the state:
-				dev.updateStateOnServer("brightnessLevel", newBrightness)
-			else:
-				# Else log failure but do NOT update state on Indigo Server.
-				indigo.server.log(u"send \"%s\" %s to %d failed" % (dev.name, "set brightness", newBrightness), isError=True)
-
-		###### BRIGHTEN BY ######
-		elif action.deviceAction == indigo.kDimmerRelayAction.BrightenBy:
-			# Command hardware module (dev) to do a relative brighten here:
-			# ** IMPLEMENT ME **
-			newBrightness = dev.brightness + action.actionValue
-			if newBrightness > 100:
-				newBrightness = 100
-			sendSuccess = True		# Set to False if it failed.
-
-			if sendSuccess:
-				# If success then log that the command was successfully sent.
-				indigo.server.log(u"sent \"%s\" %s to %d" % (dev.name, "brighten", newBrightness))
-
-				# And then tell the Indigo Server to update the state:
-				dev.updateStateOnServer("brightnessLevel", newBrightness)
-			else:
-				# Else log failure but do NOT update state on Indigo Server.
-				indigo.server.log(u"send \"%s\" %s to %d failed" % (dev.name, "brighten", newBrightness), isError=True)
-
-		###### DIM BY ######
-		elif action.deviceAction == indigo.kDimmerRelayAction.DimBy:
-			# Command hardware module (dev) to do a relative dim here:
-			# ** IMPLEMENT ME **
-			newBrightness = dev.brightness - action.actionValue
-			if newBrightness < 0:
-				newBrightness = 0
-			sendSuccess = True		# Set to False if it failed.
-
-			if sendSuccess:
-				# If success then log that the command was successfully sent.
-				indigo.server.log(u"sent \"%s\" %s to %d" % (dev.name, "dim", newBrightness))
-
-				# And then tell the Indigo Server to update the state:
-				dev.updateStateOnServer("brightnessLevel", newBrightness)
-			else:
-				# Else log failure but do NOT update state on Indigo Server.
-				indigo.server.log(u"send \"%s\" %s to %d failed" % (dev.name, "dim", newBrightness), isError=True)
 
 	########################################
 	# General Action callback
@@ -531,12 +512,12 @@ class Plugin(indigo.PluginBase):
 					response.ip_addr = ip_addr
 					
 					if type(response) == StateService and response.origin == 1 and response.source_id == source_id:
-						self.debugLog('Got StateService response from: ' + response.target_addr)
+#						self.debugLog('Got StateService response from: ' + response.target_addr)
 						labelMsg = GetLabel(response.target_addr, source_id, seq_num=0, payload={}, ack_requested=False, response_requested=True)	
 						self.dsock.sendto(labelMsg.packed_message, (response.ip_addr, UDP_BROADCAST_PORT))
 							
 					if type(response) == StateLabel and response.origin == 1 and response.source_id == source_id:
-						self.debugLog('Got StateLabel response from: ' + response.target_addr)
+#						self.debugLog('Got StateLabel response from: ' + response.target_addr)
 						if response.target_addr not in addr_seen and response.target_addr != BROADCAST_MAC:
 							addr_seen.append(response.target_addr)
 							responses.append(response)
@@ -561,29 +542,18 @@ class Plugin(indigo.PluginBase):
 
 			for deviceId, name in self.publishedDevices.items():
 				dev = indigo.devices[deviceId]
-				fakeMAC = dev.pluginProps[MAC_KEY]
-				self.debugLog('\tPublished device: ' + dev.name + ' (' + fakeMAC + ')')
-				
+				fakeMAC = dev.pluginProps[MAC_KEY]				
 				if response.target_addr == fakeMAC:
-					self.debugLog('\t\tSkipping ' + response.target_addr)
+					self.debugLog('\tSkipping Published device: ' + dev.name + ' (' + fakeMAC + ')')
 					break
 			else:
-
-				for dev in indigo.devices.iter("com.flyingdiver.indigoplugin.lifxbridge"):
-					target = dev.pluginProps.get("target", "")
-					self.debugLog('\tExisting device: ' + dev.name + ' (' + target + ')')
-					if target == response.target_addr:
-						self.debugLog('\t\tSkipping ' + response.target_addr)
-						break
-						
-				else:
-					label = response.payload_fields[0][1]
-					label = label.rstrip(' \t\r\n\0')
+				label = response.payload_fields[0][1]
+				label = label.rstrip(' \t\r\n\0')
 			
-					self.debugLog('Adding to device list: ' + label + ' (' + response.target_addr + ', ' + response.ip_addr + ')')
-					info = {"label" : label, "address": response.target_addr, "ip_addr": response.ip_addr}
-					self.foundLIFX[response.target_addr] = info
-					deviceList.append((response.target_addr, label))
+				self.debugLog('\tAdding to device list: ' + label + ' (' + response.target_addr + ', ' + response.ip_addr + ')')
+				info = {"label" : label, "address": response.target_addr, "ip_addr": response.ip_addr}
+				self.foundLIFX[response.target_addr] = info
+				deviceList.append((response.target_addr, label))
 							
 		self.debugLog('Discovery found %i usable devices' % len(deviceList))
 		return deviceList
