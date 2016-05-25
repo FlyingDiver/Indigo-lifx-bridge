@@ -1,5 +1,5 @@
 <Devices>
-	<Device type="dimmer" id="lifxBulb">
+	<Device type="relay" id="lifxBulb">
 		<Name>LIFX Device</Name>
 		<ConfigUI>
 			<Field id="target" type="menu">
