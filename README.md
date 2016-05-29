@@ -3,8 +3,6 @@ LIFX Bridge
 
 This plugin will emulate LIFX devices for the purpose of publishing Indigo devices to be controlled by LIFX client apps.  The primary goal of this bridge was to allow control of Indigo devices by Logitech Harmony Hubs.
 
-The plugin also allows control of LIFX devices as standard Indigo relay devices (on/off/toggle only).
-
 Usage
 -----
 
@@ -42,7 +40,6 @@ This project is licensed using [Unlicense](<http://unlicense.org/>).
 Plugin ID
 ---------
 
-Here's the plugin ID in case you need to programmatically restart the plugin or
-start/stop discovery:
+Here's the plugin ID in case you need to programmatically restart the plugin:
 
 **Plugin ID**: com.flyingdiver.indigoplugin.lifxbridge
