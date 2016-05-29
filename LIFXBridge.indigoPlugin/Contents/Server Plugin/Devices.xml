@@ -1,11 +1,2 @@
 <Devices>
-	<Device type="relay" id="lifxBulb">
-		<Name>LIFX Device</Name>
-		<ConfigUI>
-			<Field id="target" type="menu">
-				<Label>Available LIFX Devices:</Label>
-				<List class="self" filter="" method="deviceListGenerator"/>
-			</Field>
-		</ConfigUI>
-	</Device>
 </Devices>
