@@ -19,10 +19,6 @@ try:
 except:
 	pass
 
-# Note the "indigo" module is automatically imported and made available inside
-# our global name space by the host process. We add it here so that the various
-# Python IDEs will not show errors on each usage of the indigo module.
-
 PUBLISHED_KEY = "published"
 ALT_NAME_KEY = "alternate-name"
 MAC_KEY = "fakeMAC"
@@ -45,7 +41,14 @@ class Plugin(indigo.PluginBase):
 		self.debug = self.pluginPrefs.get("showDebugInfo", False)
 		self.debugLog(u"Debugging enabled")
 			
+	def __del__(self):
+		indigo.PluginBase.__del__(self)
+
+	def startup(self):
+		indigo.server.log(u"Starting LIFX Bridge")
+		
 		self.updater = GitHubPluginUpdater(self)
+		self.updater.checkForUpdate()
 		self.next_update_check = time.time() + float(self.pluginPrefs.get('updateFrequency', 24)) * 60.0 * 60.0
 				
 		self.refreshDeviceList()
@@ -54,14 +57,6 @@ class Plugin(indigo.PluginBase):
 		# in case there was a change or deletion of a device that's published
 		indigo.devices.subscribeToChanges()
 
-	def __del__(self):
-		indigo.PluginBase.__del__(self)
-
-	def startup(self):
-		indigo.server.log(u"Starting LIFX Bridge")
-		
-		self.updater.checkForUpdate()
-		
 		try :
 			self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 			self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -83,40 +78,43 @@ class Plugin(indigo.PluginBase):
 		self.sock.close()
 
 	def runConcurrentThread(self):
-		self.stopThread = False
 
-		while True:
+		try:
+			while True:
 			
-			if time.time() > self.next_update_check:
-				self.updater.checkForUpdate()
-				self.next_update_check = time.time() + float(self.pluginPrefs['updateFrequency']) * 60.0 * 60.0
+				if len(self.publishedDevices) > 0:		# no need to respond if there aren't any devices to emulate
+			
+					try:
+						data, (ip_addr, port) = self.sock.recvfrom(1024)
+
+					except socket.timeout:
+						pass
+
+					except socket.error , msg:
+						self.debugLog('Socket recvfrom failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
+
+					else:
+						message = unpack_lifx_message(data)
+						self.lifxRespond(message, ip_addr, port)
+
+					self.sleep(0.1)		# short sleep for possible shutdown
 				
-			if len(self.publishedDevices) > 0:		# no need to respond if there aren't any devices to emulate
-			
-				try:
-					data, (ip_addr, port) = self.sock.recvfrom(1024)
-
-				except socket.timeout:
-					pass
-
-				except socket.error , msg:
-					self.debugLog('Socket recvfrom failed. Error Code : ' + str(msg[0]) + ' Message ' + msg[1])
-
 				else:
-					message = unpack_lifx_message(data)
-					self.lifxRespond(message, ip_addr, port)
+					self.sleep(1.0)		# longer sleep when not looking for LIFX requests
 
-			else:
-				time.sleep(1)
+				# Future: check here for pending responses or resends for commands
+
+				# Plugin Update check
+				
+				if time.time() > self.next_update_check:
+					self.updater.checkForUpdate()
+					self.next_update_check = time.time() + float(self.pluginPrefs['updateFrequency']) * 60.0 * 60.0
+				
 									
-			if self.stopThread:
-				break
+		except self.stopThread:
+			pass
 							
 							
-	def stopConcurrentThread(self):
-		self.stopThread = True
-		
-
 	########################################
 	def validateDeviceConfigUi(self, valuesDict, typeId, devId):
 
