@@ -1,10 +1,8 @@
-LIFX Bridge
-================
+# LIFX Bridge
 
 This plugin will emulate LIFX devices for the purpose of publishing Indigo devices to be controlled by LIFX client apps.  The primary goal of this bridge was to allow control of Indigo devices by Logitech Harmony Hubs.
 
-Usage
------
+### Usage
 
 The plugin is quite straight-forward: the first thing you’ll want to do is
 install it. Download the version you want from the releases section above (we
@@ -31,15 +29,14 @@ Once you’re finished adding/editing/deleting published devices, click the
 
 The Configuration UI for this plugin is taken from the Alexa-Hue plugin.  Thanks for the Unlicense!
 
-License
--------
+
+### Broadcast Messages
+
+	PluginID: com.flyingdiver.indigoplugin.lifxbridge
+
+ 	None at this time
+   
+## License
 
 This project is licensed using [Unlicense](<http://unlicense.org/>). 
 
-
-Plugin ID
----------
-
-Here's the plugin ID in case you need to programmatically restart the plugin:
-
-**Plugin ID**: com.flyingdiver.indigoplugin.lifxbridge
