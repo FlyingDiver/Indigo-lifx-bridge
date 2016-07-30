@@ -1,15 +1,4 @@
 <?xml version="1.0"?>
-<!-- If your plugin wants to add menu items to it's submenu off the new Extensions menu,
-     define them here. Each should have a unique menu id, a Name, and either a CallbackMethod
-     or a ConfigUI element.
-
-     Specify a single CallbackMethod if your menu item doesn't need any kind of UI.
-
-     Specify a ConfigUI element that describes a configuration UI that will be shown
-     when the user selects the menu. You may also specify an actionId attribute on
-     a closed ConfigUI element that specifies an action defined in the Actions.xml
-     that will be used for the UI.
--->
 <MenuItems>
     <MenuItem id="manageDevices">
         <Name>Manage Devices...</Name>
@@ -48,19 +37,14 @@
             </Field>
         </ConfigUI>
     </MenuItem>
-	<MenuItem id="titleSeparator1" type="separator" />
-	<MenuItem id="toggleDebugging">
-		<Name>Toggle Debugging</Name>
-        <CallbackMethod>toggleDebugging</CallbackMethod>
-	</MenuItem>
-	<MenuItem id="titleSeparator2" type="separator" />
+    <MenuItem id="titleSeparator2" type="separator" />
     <MenuItem id="checkForUpdates">
-    	<Name>Check for Updates</Name>
-    	<CallbackMethod>checkForUpdates</CallbackMethod>
+        <Name>Check for Updates</Name>
+        <CallbackMethod>checkForUpdates</CallbackMethod>
     </MenuItem>
     <MenuItem id="updatePlugin">
-    	<Name>Update Plugin</Name>
-    	<CallbackMethod>updatePlugin</CallbackMethod>
+        <Name>Update Plugin</Name>
+        <CallbackMethod>updatePlugin</CallbackMethod>
     </MenuItem>
     <MenuItem id="forceUpdate">
         <Name>Force Update</Name>

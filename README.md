@@ -40,3 +40,6 @@ The Configuration UI for this plugin is taken from the Alexa-Hue plugin.  Thanks
 
 This project is licensed using [Unlicense](<http://unlicense.org/>). 
 
+### Indigo 7 Only
+
+This plugin only works under Indigo 7 or greater.
