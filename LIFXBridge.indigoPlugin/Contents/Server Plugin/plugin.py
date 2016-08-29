@@ -734,7 +734,7 @@ class Plugin(indigo.PluginBase):
             self.logger.info(u"Set brightness of device %i to %i" % (deviceId, brightness))
             indigo.dimmer.setBrightness(dev, value=brightness)
         else:
-            self.logger.error(u"Device with id %i doesn't support dimming." % deviceId)
+            self.logger.info(u"Device with id %i doesn't support dimming." % deviceId)
 
     ########################################
     # Method called from lifxRespond() to get the brightness of a device
