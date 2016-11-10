@@ -313,10 +313,10 @@ class Plugin(indigo.PluginBase):
         source = message.source_id
         seq_num = message.seq_num
 
-        if seq_num > self.last_seq_num
+        if seq_num > self.last_seq_num:
             self.last_seq_num = seq_num
             self.debugLog("lifxRespond, processing message seq_num = " + str(seq_num))
-        else
+        else:
             self.debugLog("lifxRespond, skipping message, duplicate or out of order seq_num = " + str(seq_num))
             return
 
