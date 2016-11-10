@@ -676,7 +676,7 @@ class Plugin(indigo.PluginBase):
 
 			for devID, alias in self.publishedDevices.items():
 				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-					self.debugLog("LightSetPower command is for device: " + indigo.devices[devID].name + ", payload = " + str(message.payload_fields)) + ", sequence num = " + str(seq_num))
+					self.debugLog("LightSetPower command is for device: " + indigo.devices[devID].name + ", payload = " + str(message.payload_fields) + ", sequence num = " + str(seq_num))
 
 					for field in message.payload_fields:
 						if field[0] == "Power":
