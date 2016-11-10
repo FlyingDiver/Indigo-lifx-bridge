@@ -51,6 +51,8 @@ class Plugin(indigo.PluginBase):
 		self.updater.checkForUpdate()
 		self.next_update_check = time.time() + float(self.pluginPrefs.get('updateFrequency', 24)) * 60.0 * 60.0
 
+        self.last_seq_num = -1
+
 		self.refreshDeviceList()
 
 		# Need to subscribe to device changes here so we can call the refreshDeviceList method
@@ -310,6 +312,13 @@ class Plugin(indigo.PluginBase):
 
 		source = message.source_id
 		seq_num = message.seq_num
+
+        if seq_num > self.last_seq_num
+            self.last_seq_num = seq_num
+			self.debugLog("lifxRespond, processing message seq_num = " + str(seq_num))
+		else
+			self.debugLog("lifxRespond, skipping message, duplicate or out of order seq_num = " + str(seq_num))
+		    return
 
 		if message.message_type == MSG_IDS[GetService]:														# 2
 
@@ -676,7 +685,7 @@ class Plugin(indigo.PluginBase):
 
 			for devID, alias in self.publishedDevices.items():
 				if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-					self.debugLog("LightSetPower command is for device: " + indigo.devices[devID].name + ", payload = " + str(message.payload_fields) + ", sequence num = " + str(seq_num))
+					self.debugLog("LightSetPower command is for device: " + indigo.devices[devID].name + ", payload = " + str(message.payload_fields))
 
 					for field in message.payload_fields:
 						if field[0] == "Power":
