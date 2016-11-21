@@ -20,7 +20,7 @@ class GetService(Message):
 
 class StateService(Message):
     def __init__(self, target_addr, source_id, seq_num, payload, ack_requested=False, response_requested=False):
-        self.service = payload["service"] 
+        self.service = payload["service"]
         self.port = payload["port"]
         super(StateService, self).__init__(MSG_IDS[StateService], target_addr, source_id, seq_num, ack_requested, response_requested)
 
@@ -66,7 +66,7 @@ class GetHostFirmware(Message):
 
 class StateHostFirmware(Message):
     def __init__(self, target_addr, source_id, seq_num, payload, ack_requested=False, response_requested=False):
-        self.build = payload["build"] 
+        self.build = payload["build"]
         self.reserved1 = payload["reserved1"]
         self.version = payload["version"]
         super(StateHostFirmware, self).__init__(MSG_IDS[StateHostFirmware], target_addr, source_id, seq_num, ack_requested, response_requested)
@@ -89,7 +89,7 @@ class GetWifiInfo(Message):
 
 class StateWifiInfo(Message):
     def __init__(self, target_addr, source_id, seq_num, payload, ack_requested=False, response_requested=False):
-        self.signal = payload["signal"] 
+        self.signal = payload["signal"]
         self.tx = payload["tx"]
         self.rx = payload["rx"]
         self.reserved1 = payload["reserved1"]
@@ -115,7 +115,7 @@ class GetWifiFirmware(Message):
 
 class StateWifiFirmware(Message):
     def __init__(self, target_addr, source_id, seq_num, payload, ack_requested=False, response_requested=False):
-        self.build = payload["build"] 
+        self.build = payload["build"]
         self.reserved1 = payload["reserved1"]
         self.version = payload["version"]
         super(StateWifiFirmware, self).__init__(MSG_IDS[StateWifiFirmware], target_addr, source_id, seq_num, ack_requested, response_requested)
@@ -200,7 +200,7 @@ class GetVersion(Message):
 
 class StateVersion(Message):
     def __init__(self, target_addr, source_id, seq_num, payload, ack_requested=False, response_requested=False):
-        self.vendor = payload["vendor"] 
+        self.vendor = payload["vendor"]
         self.product = payload["product"]
         self.version = payload["version"]
         super(StateVersion, self).__init__(MSG_IDS[StateVersion], target_addr, source_id, seq_num, ack_requested, response_requested)
@@ -223,7 +223,7 @@ class GetInfo(Message):
 
 class StateInfo(Message):
     def __init__(self, target_addr, source_id, seq_num, payload, ack_requested=False, response_requested=False):
-        self.time = payload["time"] 
+        self.time = payload["time"]
         self.uptime = payload["uptime"]
         self.downtime = payload["downtime"]
         super(StateInfo, self).__init__(MSG_IDS[StateInfo], target_addr, source_id, seq_num, ack_requested, response_requested)
@@ -242,6 +242,22 @@ class StateInfo(Message):
 class Acknowledgement(Message):
     def __init__(self, target_addr, source_id, seq_num, payload={}, ack_requested=False, response_requested=False):
         super(Acknowledgement, self).__init__(MSG_IDS[Acknowledgement], target_addr, source_id, seq_num, ack_requested, response_requested)
+
+class GetLocation(Message):
+    def __init__(self, target_addr, source_id, seq_num, payload={}, ack_requested=False, response_requested=False):
+        super(GetLocation, self).__init__(MSG_IDS[GetLocation], target_addr, source_id, seq_num, ack_requested, response_requested)
+
+class StateLocation(Message):
+    def __init__(self, target_addr, source_id, seq_num, payload={}, ack_requested=False, response_requested=False):
+        super(StateLocation, self).__init__(MSG_IDS[StateLocation], target_addr, source_id, seq_num, ack_requested, response_requested)
+
+class GetGroup(Message):
+    def __init__(self, target_addr, source_id, seq_num, payload={}, ack_requested=False, response_requested=False):
+        super(GetGroup, self).__init__(MSG_IDS[GetGroup], target_addr, source_id, seq_num, ack_requested, response_requested)
+
+class StateGroup(Message):
+    def __init__(self, target_addr, source_id, seq_num, payload={}, ack_requested=False, response_requested=False):
+        super(StateGroup, self).__init__(MSG_IDS[StateGroup], target_addr, source_id, seq_num, ack_requested, response_requested)
 
 
 class EchoRequest(Message):
@@ -355,36 +371,76 @@ class LightStatePower(Message):
         payload = power_level
         return payload
 
+class LightGetInfrared(Message):
+    def __init__(self, target_addr, source_id, seq_num, payload={}, ack_requested=False, response_requested=False):
+        super(LightGetInfrared, self).__init__(MSG_IDS[LightGetInfrared], target_addr, source_id, seq_num, ack_requested, response_requested)
 
-MSG_IDS = {     GetService: 2, 
-                StateService: 3, 
-                GetHostInfo: 12, 
-                StateHostInfo: 13, 
-                GetHostFirmware: 14, 
-                StateHostFirmware: 15, 
-                GetWifiInfo: 16, 
-                StateWifiInfo: 17, 
-                GetWifiFirmware: 18, 
-                StateWifiFirmware: 19, 
-                GetPower: 20, 
-                SetPower: 21, 
-                StatePower: 22, 
-                GetLabel: 23, 
-                SetLabel: 24, 
-                StateLabel: 25, 
-                GetVersion: 32, 
-                StateVersion: 33, 
-                GetInfo: 34, 
-                StateInfo: 35, 
-                Acknowledgement: 45, 
-                EchoRequest: 58, 
+class LightSetInfrared(Message):
+    def __init__(self, target_addr, source_id, seq_num, payload={}, ack_requested=False, response_requested=False):
+        super(LightSetInfrared, self).__init__(MSG_IDS[LightSetInfrared], target_addr, source_id, seq_num, ack_requested, response_requested)
+
+class LightStateInfrared(Message):
+    def __init__(self, target_addr, source_id, seq_num, payload={}, ack_requested=False, response_requested=False):
+        super(LightStateInfrared, self).__init__(MSG_IDS[LightStateInfrared], target_addr, source_id, seq_num, ack_requested, response_requested)
+
+class SetColorZones(Message):
+    def __init__(self, target_addr, source_id, seq_num, payload={}, ack_requested=False, response_requested=False):
+        super(SetColorZones, self).__init__(MSG_IDS[SetColorZones], target_addr, source_id, seq_num, ack_requested, response_requested)
+
+class GetColorZones(Message):
+    def __init__(self, target_addr, source_id, seq_num, payload={}, ack_requested=False, response_requested=False):
+        super(GetColorZones, self).__init__(MSG_IDS[GetColorZones], target_addr, source_id, seq_num, ack_requested, response_requested)
+
+class StateZone(Message):
+    def __init__(self, target_addr, source_id, seq_num, payload={}, ack_requested=False, response_requested=False):
+        super(StateZone, self).__init__(MSG_IDS[StateZone], target_addr, source_id, seq_num, ack_requested, response_requested)
+
+class StateMultiZone(Message):
+    def __init__(self, target_addr, source_id, seq_num, payload={}, ack_requested=False, response_requested=False):
+        super(StateMultiZone, self).__init__(MSG_IDS[StateMultiZone], target_addr, source_id, seq_num, ack_requested, response_requested)
+
+
+MSG_IDS = {     GetService: 2,
+                StateService: 3,
+                GetHostInfo: 12,
+                StateHostInfo: 13,
+                GetHostFirmware: 14,
+                StateHostFirmware: 15,
+                GetWifiInfo: 16,
+                StateWifiInfo: 17,
+                GetWifiFirmware: 18,
+                StateWifiFirmware: 19,
+                GetPower: 20,
+                SetPower: 21,
+                StatePower: 22,
+                GetLabel: 23,
+                SetLabel: 24,
+                StateLabel: 25,
+                GetVersion: 32,
+                StateVersion: 33,
+                GetInfo: 34,
+                StateInfo: 35,
+                Acknowledgement: 45,
+                GetLocation: 48,
+                StateLocation: 50,
+                GetGroup: 51,
+                StateGroup: 53,
+                EchoRequest: 58,
                 EchoResponse: 59,
                 LightGet: 101,
                 LightSetColor: 102,
                 LightState: 107,
                 LightGetPower: 116,
                 LightSetPower: 117,
-                LightStatePower: 118}
+                LightStatePower: 118,
+                LightGetInfrared: 120,
+                LightSetInfrared: 121,
+                LightStateInfrared: 122,
+                SetColorZones: 501,
+                GetColorZones: 502,
+                StateZone: 503,
+                StateMultiZone: 506
+            }
 
 SERVICE_IDS = { 1: "UDP",
                 2: "reserved",
@@ -403,5 +459,5 @@ def str_map(key):
         if key > 0 and key <= 65535:
             string_representation = "On"
         elif key == 0:
-            string_representation = "Off" 
+            string_representation = "Off"
     return string_representation
