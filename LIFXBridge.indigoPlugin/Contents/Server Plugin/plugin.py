@@ -128,7 +128,7 @@ class Plugin(indigo.PluginBase):
     # gets deleted - we'll just rebuild the device list cache in those situations.
     ########################################
     def deviceDeleted(self, dev):
-        self.logger.debug(u"deviceDeleted called")
+        self.logger.debug(u"deviceDeleted: %s " % dev.name)
         if dev.id in self.publishedDevices:
             self.logger.info(u"A device (%s) that was published has been deleted." % dev.name)
             self.refreshDeviceList()

@@ -29,12 +29,12 @@ Once you’re finished adding/editing/deleting published devices, click the
 
 The Configuration UI for this plugin is taken from the Alexa-Hue plugin.  Thanks for the Unlicense!
 
+**PluginID**: com.flyingdiver.indigoplugin.lifxbridge
+
 
 ### Broadcast Messages
 
-	PluginID: com.flyingdiver.indigoplugin.lifxbridge
-
- 	None at this time
+None at this time
    
 ## License
 
