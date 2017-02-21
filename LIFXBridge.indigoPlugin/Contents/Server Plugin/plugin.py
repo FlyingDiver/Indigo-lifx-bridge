@@ -771,7 +771,7 @@ class Plugin(indigo.PluginBase):
     # Method called from lifxRespond() to set brightness of a device
     #
     #   deviceId is the ID of the device in Indigo
-    #   brightness is the brightness in the range 0-100
+    #   brightness is in the range 0-65535 (LIFX range)
     ########################################
     def setDeviceBrightness(self, deviceId, brightness):
         try:
@@ -781,8 +781,9 @@ class Plugin(indigo.PluginBase):
             self.refreshDeviceList()
             return
         if isinstance(dev, indigo.DimmerDevice):
+            adjusted = int((brightness / 65535.0 ) * 100.0)     # adjust to Indigo range
             self.logger.info(u"Set brightness of device %i to %i" % (deviceId, brightness))
-            indigo.dimmer.setBrightness(dev, value=brightness)
+            indigo.dimmer.setBrightness(dev, value=adjusted)
         else:
             self.logger.info(u"Device with id %i doesn't support dimming." % deviceId)
 
@@ -801,7 +802,7 @@ class Plugin(indigo.PluginBase):
             return
 
         if isinstance(dev, indigo.DimmerDevice):
-            return int((float(dev.brightness) / 100.0) * 65535)
+            return int((float(dev.brightness) / 100.0) * 65535)     # adjust to LIFX range
         else:
             return int(dev.onState) * 65535
 
