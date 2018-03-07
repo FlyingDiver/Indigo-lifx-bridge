@@ -13,8 +13,6 @@ from lifxlan.unpack import unpack_lifx_message
 from lifxlan.message import Message, BROADCAST_MAC, HEADER_SIZE_BYTES, little_endian
 from lifxlan.device import UDP_BROADCAST_IP, UDP_BROADCAST_PORT
 
-from ghpu import GitHubPluginUpdater
-
 PUBLISHED_KEY = "published"
 ALT_NAME_KEY = "alternate-name"
 MAC_KEY = "fakeMAC"
@@ -46,11 +44,6 @@ class Plugin(indigo.PluginBase):
 
     def startup(self):
         self.logger.info(u"Starting LIFX Bridge")
-
-        self.updater = GitHubPluginUpdater(self)
-        self.updateFrequency = float(self.pluginPrefs.get('updateFrequency', "24")) * 60.0 * 60.0
-        self.logger.debug(u"updateFrequency = " + str(self.updateFrequency))
-        self.next_update_check = time.time()
 
         self.seen_msg_list = [-1, -1, -1, -1, -1, -1]
 
@@ -84,10 +77,6 @@ class Plugin(indigo.PluginBase):
 
         try:
             while True:
-
-                if (self.updateFrequency > 0.0) and (time.time() > self.next_update_check):
-                    self.next_update_check = time.time() + self.updateFrequency
-                    self.updater.checkForUpdate()
 
                 if len(self.publishedDevices) > 0:      # no need to respond if there aren't any devices to emulate
 
@@ -285,15 +274,6 @@ class Plugin(indigo.PluginBase):
             self.logger.info(u"Turning on debug logging")
             self.pluginPrefs["showDebugInfo"] = True
         self.debug = not self.debug
-
-    def checkForUpdates(self):
-        self.updater.checkForUpdate()
-
-    def updatePlugin(self):
-        self.updater.update()
-
-    def forceUpdate(self):
-        self.updater.update(currentVersion='0.0.0')
 
     ########################################
     #   Methods that deal with LIFX protocol messages
