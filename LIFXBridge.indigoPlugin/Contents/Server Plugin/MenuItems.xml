@@ -37,4 +37,8 @@
             </Field>
         </ConfigUI>
     </MenuItem>
+    <MenuItem id="listDevices">
+        <CallbackMethod>listDevices</CallbackMethod>
+        <Name>Print Device List to Log</Name>
+    </MenuItem>
 </MenuItems>

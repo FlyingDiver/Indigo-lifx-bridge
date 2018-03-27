@@ -266,14 +266,16 @@ class Plugin(indigo.PluginBase):
     ########################################
     # Actions defined in MenuItems.xml:
     ########################################
-    def toggleDebugging(self):
-        if self.debug:
-            self.logger.info(u"Turning off debug logging")
-            self.pluginPrefs["showDebugInfo"] = False
-        else:
-            self.logger.info(u"Turning on debug logging")
-            self.pluginPrefs["showDebugInfo"] = True
-        self.debug = not self.debug
+    def listDevices(self):
+        self.logger.info(u"{:^16}  {:^20} {:^30}".format("Indigo DevID", "LIFX Address", "Indigo Name (alias)"))
+        for id, name in self.publishedDevices.items():
+            fakeMAC = indigo.devices[id].pluginProps[MAC_KEY]
+            deviceName = indigo.devices[id].name
+            if len(name) > 0:
+                deviceName = "{} ({})".format(deviceName, name)
+            self.logger.info(u"{:<16}  {:20} {:30}".format(id, fakeMAC, deviceName))
+            
+        
 
     ########################################
     #   Methods that deal with LIFX protocol messages
