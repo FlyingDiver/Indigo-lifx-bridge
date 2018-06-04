@@ -792,13 +792,12 @@ class Plugin(indigo.PluginBase):
                 indigo.dimmer.setBrightness(dev, value=adjusted)
                 return
             else:
-                adj_brightness = ((brightness / 65535.0 ) * 100.0)
                 rgb_color = colorsys.hsv_to_rgb(hue/65535.0, saturation/65535.0, brightness/65535.0)
                 adj_red = (rgb_color[0] * 100.0)
                 adj_green = (rgb_color[1] * 100.0)
                 adj_blue = (rgb_color[2] * 100.0)
-                self.logger.info(u"setColorLevels of device {} to {}, {}, {}, {}".format(deviceId, adj_red, adj_green, adj_blue, adj_brightness))
-                indigo.dimmer.setColorLevels(dev, adj_red, adj_green, adj_blue, adj_brightness)
+                self.logger.info(u"setColorLevels of device {} to {}, {}, {}".format(deviceId, adj_red, adj_green, adj_blue))
+                indigo.dimmer.setColorLevels(dev, adj_red, adj_green, adj_blue, 0, 0, 0)
         else:
             self.logger.info(u"Device with id {} doesn't support dimming.".format(deviceId))
 
