@@ -777,6 +777,7 @@ class Plugin(indigo.PluginBase):
     #    hue, saturation, brightness are in the range 0-65535 (LIFX range)
     ########################################
     def setDeviceColor(self, deviceId, hue, saturation, brightness, color):
+        self.logger.info(u"setDeviceColor for {}: {}, {}, {}, {}" % (deviceId, hue, saturation, brightness, color)))
         try:
             dev = indigo.devices[deviceId]
         except:
@@ -791,9 +792,13 @@ class Plugin(indigo.PluginBase):
                 indigo.dimmer.setBrightness(dev, value=adjusted)
                 return
             else:
+                adj_brightness = ((brightness / 65535.0 ) * 100.0)
                 rgb_color = colorsys.hsv_to_rgb(hue/65535.0, saturation/65535.0, brightness/65535.0)
-                self.logger.info(u"Set rgb_color of device {} to {}".format(deviceId, rgb_color))
-                indigo.dimmer.setColorLevels(dev, int(rgb_color[0] * 100.0), int(rgb_color[1] * 100.0), int(rgb_color[2] * 100.0), int(brightness * 100.0))
+                adj_red = (rgb_color[0] * 100.0)
+                adj_green = (rgb_color[1] * 100.0)
+                adj_blue = (rgb_color[2] * 100.0)
+                self.logger.info(u"setColorLevels of device {} to {}, {}, {}, {}".format(deviceId, adj_red, adj_green, adj_blue, adj_brightness))
+                indigo.dimmer.setColorLevels(dev, adj_red, adj_green, adj_blue, adj_brightness)
         else:
             self.logger.info(u"Device with id %i doesn't support dimming." % deviceId)
 
