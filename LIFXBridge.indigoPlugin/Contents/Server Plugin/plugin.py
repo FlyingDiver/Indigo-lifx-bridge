@@ -7,6 +7,7 @@ import time
 from random import randint
 import json
 import logging
+import colorsys
 
 from lifxlan.msgtypes import *
 from lifxlan.unpack import unpack_lifx_message
@@ -288,7 +289,7 @@ class Plugin(indigo.PluginBase):
 
         if seq_num in self.seen_msg_list:
 
-            self.debugLog("lifxRespond, skipping repeat seq_num = %d, type = %d, target = %s" % (seq_num, message.message_type,  message.target_addr))
+            self.logger.debug("lifxRespond, skipping repeat seq_num = %d, type = %d, target = %s" % (seq_num, message.message_type,  message.target_addr))
             return
 
         elif seq_num == 0:
@@ -297,7 +298,7 @@ class Plugin(indigo.PluginBase):
             self.seen_msg_list.pop(0)
             self.seen_msg_list.append(seq_num)
 
-        self.debugLog("lifxRespond, seq_num = %d, type = %d, target = %s" % (seq_num, message.message_type,  message.target_addr))
+        self.logger.debug("lifxRespond, seq_num = %d, type = %d, target = %s" % (seq_num, message.message_type,  message.target_addr))
 
         if message.message_type == MSG_IDS[GetService]:                                                     # 2
 
@@ -651,7 +652,7 @@ class Plugin(indigo.PluginBase):
                     for field in message.payload_fields:
                         if field[0] == "Color":
                             (hue, saturation, brightness, color) = field[1]
-                            self.setDeviceBrightness(devID, brightness)
+                            self.setDeviceColor(devID, hue, saturation, brightness, color)
                             break
 
                     if message.ack_requested:
@@ -770,6 +771,32 @@ class Plugin(indigo.PluginBase):
             self.logger.info(u"Device with id %i doesn't support dimming." % deviceId)
 
     ########################################
+    # Method called from lifxRespond() to set color of a device
+    #
+    #   deviceId is the ID of the device in Indigo
+    #    hue, saturation, brightness are in the range 0-65535 (LIFX range)
+    ########################################
+    def setDeviceColor(self, deviceId, hue, saturation, brightness, color):
+        try:
+            dev = indigo.devices[deviceId]
+        except:
+            self.logger.error(u"Device with id %i doesn't exist. The device list will be rebuilt." % deviceId)
+            self.refreshDeviceList()
+            return
+            
+        if isinstance(dev, indigo.DimmerDevice):
+            if not dev.supportsRGB:
+                adjusted = int((brightness / 65535.0 ) * 100.0)     # adjust to Indigo range
+                self.logger.info(u"Set brightness of device %i to %i" % (deviceId, brightness))
+                indigo.dimmer.setBrightness(dev, value=adjusted)
+                return
+            else:
+                rgb_color = colorsys.hsv_to_rgb(hue/65535.0, saturation/65535.0, brightness/65535.0)
+                indigo.dimmer.setColorLevels(dev, int(rgb_color[0] * 100.0), int(rgb_color[1] * 100.0), int(rgb_color[2] * 100.0), brightness, brightness, color)
+        else:
+            self.logger.info(u"Device with id %i doesn't support dimming." % deviceId)
+
+    ########################################
     # Method called from lifxRespond() to get the brightness of a device
     #
     #   deviceId is the ID of the device in Indigo
@@ -789,7 +816,7 @@ class Plugin(indigo.PluginBase):
             return int(dev.onState) * 65535
 
     ########################################
-    # Method called from lifxRespond() to get the brightness of a device
+    # Method called from lifxRespond() to get the power state of a device
     #
     #   deviceId is the ID of the device in Indigo
     #   brightness is in the range 0-65535 (LIFX range)
