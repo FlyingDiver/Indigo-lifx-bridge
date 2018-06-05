@@ -1,10 +1,10 @@
+# coding=utf-8
 # message.py
 # Author: Meghan Clark
 
 import struct
+
 import bitstring
-import binascii
-import sys
 
 BROADCAST_MAC = "00:00:00:00:00:00"
 BROADCAST_SOURCE_ID = 0
@@ -17,7 +17,7 @@ class Message(object):
         # Frame
         self.frame_format = ["16", "2, 1, 1, 12", "32"]
         self.size = None                                                # 16 bits/uint16
-        self.origin = 1                                                 # 2 bits/uint8, must be zero for clients, one for devices
+        self.origin = 0                                                 # 2 bits/uint8, must be zero
         self.tagged = 1 if target_addr == BROADCAST_MAC else 0          # 1 bit/bool, also must be one if getservice
         self.addressable = 1                                            # 1 bit/bool, must be one
         self.protocol = 1024                                            # 12 bits/uint16
@@ -48,7 +48,7 @@ class Message(object):
         packed_message = self.header + self.payload
         return packed_message
 
-    # frame (and thus header) needs to be generated after payload (for size field) 
+    # frame (and thus header) needs to be generated after payload (for size field)
     def get_header(self):
         if self.size == None:
             self.size = self.get_msg_size()
@@ -57,7 +57,7 @@ class Message(object):
         protocol_header = self.get_protocol_header()
         header = frame + frame_addr + protocol_header
         return header
-    
+
     # Default: No payload unless method overridden
     def get_payload(self):
         return little_endian(bitstring.pack(""))
@@ -101,19 +101,19 @@ class Message(object):
     def __str__(self):
         indent = "  "
         s = self.__class__.__name__ + "\n"
-        s += indent + "Size: {0}\n".format(self.size)
-        s += indent + "Origin: {0}\n".format(self.origin)
-        s += indent + "Tagged: {0}\n".format(self.tagged)
-        s += indent + "Protocol: {0}\n".format(self.protocol)
-        s += indent + "Source ID: {0}\n".format(self.source_id)
-        s += indent + "Target MAC Address: {0}\n".format(self.target_addr)
-        s += indent + "Ack Requested: {0}\n".format(self.ack_requested)
-        s += indent + "Response Requested: {0}\n".format(self.response_requested)
-        s += indent + "Seq Num: {0}\n".format(self.seq_num)
-        s += indent + "Message Type: {0}\n".format(self.message_type)
+        s += indent + "Size: {}\n".format(self.size)
+        s += indent + "Origin: {}\n".format(self.origin)
+        s += indent + "Tagged: {}\n".format(self.tagged)
+        s += indent + "Protocol: {}\n".format(self.protocol)
+        s += indent + "Source ID: {}\n".format(self.source_id)
+        s += indent + "Target MAC Address: {}\n".format(self.target_addr)
+        s += indent + "Ack Requested: {}\n".format(self.ack_requested)
+        s += indent + "Response Requested: {}\n".format(self.response_requested)
+        s += indent + "Seq Num: {}\n".format(self.seq_num)
+        s += indent + "Message Type: {}\n".format(self.message_type)
         s += indent + "Payload:"
         for field in self.payload_fields:
-            s += "\n" + indent*2 + "{0}: {1}".format(field[0], field[1])
+            s += "\n" + indent*2 + "{}: {}".format(field[0], field[1])
         if len(self.payload_fields) == 0:
             s += "\n" + indent*2 + "<empty>"
         s += "\n"
@@ -127,12 +127,12 @@ def convert_MAC_to_int(addr):
     reverse_bytes_str = addr.split(':')
     reverse_bytes_str.reverse()
     addr_str = "".join(reverse_bytes_str)
-    return int(addr_str, 16)    
+    return int(addr_str, 16)
 
 def little_endian(bs):
-    shifts = [i*8 for i in range(len(bs)/8)]
+    shifts = [i*8 for i in range(int(len(bs)/8))]
     int_bytes_little_endian = [int(bs.uintbe >> i & 0xff) for i in shifts]
-    packed_message_little_endian = ""
+    packed_message_little_endian = b""
     for b in int_bytes_little_endian:
         packed_message_little_endian += struct.pack("B", b)
     return packed_message_little_endian
