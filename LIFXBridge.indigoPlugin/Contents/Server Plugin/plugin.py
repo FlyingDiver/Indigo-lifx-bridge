@@ -8,16 +8,18 @@ from random import randint
 import json
 import logging
 import colorsys
+import os
+import base64
 
 from lifxlan.msgtypes import *
 from lifxlan.unpack import unpack_lifx_message
 from lifxlan.message import Message, BROADCAST_MAC, HEADER_SIZE_BYTES, little_endian
-from lifxlan.device import UDP_BROADCAST_IP, UDP_BROADCAST_PORT
 
 PUBLISHED_KEY = "published"
 ALT_NAME_KEY = "alternate-name"
 MAC_KEY = "fakeMAC"
 TARGET_KEY = "target"
+LOCATION_KEY = "location"
 
 DEFAULT_LIFX_PORT = 56700
 
@@ -221,8 +223,9 @@ class Plugin(indigo.PluginBase):
         elif ALT_NAME_KEY in props:
             del props[ALT_NAME_KEY]
 
-        # add a fake MAC address to the props
+        # add a fake MAC address and random location array to the props
         props[MAC_KEY] = fakeMAC(deviceId)
+        props[LOCATION_KEY] = base64.b64encode(bytearray(os.urandom(16)))
 
         # Replace the props on the server's copy of the device instance.
         dev.replacePluginPropsOnServer(props)
@@ -298,7 +301,7 @@ class Plugin(indigo.PluginBase):
             self.seen_msg_list.pop(0)
             self.seen_msg_list.append(seq_num)
 
-        self.logger.debug("lifxRespond, seq_num = %d, type = %d, target = %s" % (seq_num, message.message_type,  message.target_addr))
+        self.logger.threaddebug(u"lifxRespond: message = {}".format(str(message)))
 
         if message.message_type == MSG_IDS[GetService]:                                                     # 2
 
@@ -542,7 +545,12 @@ class Plugin(indigo.PluginBase):
 
                     self.logger.debug("GetVersion message, replying for: " + indigo.devices[devID].name)
 
-                    payload = {"vendor":"1","product":"10","version":"0"}
+                    if indigo.devices[devID].supportsRGB:
+                        product = "22"      # Color 1000
+                    else:
+                        product = "10"      # White 800 (Low Voltage)
+                        
+                    payload = {"vendor" : "1", "product" : product, "version" : "0"}
                     replyMessage = StateVersion(message.target_addr, source, seq_num, payload, False, False)
                     self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
@@ -597,6 +605,78 @@ class Plugin(indigo.PluginBase):
             if message.response_requested:
                 self.logger.debug("Oops!  Client wants a response")
 
+        elif message.message_type == MSG_IDS[GetLocation]:                                                  # 48
+
+            time_s = str(int(time.time() * 1000000000))
+            
+            for devID, alias in self.publishedDevices.items():
+
+                if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:   # reply with info for requested device
+
+                    try:
+                        label = indigo.devices[devID].pluginProps[ALT_NAME_KEY]
+                    except:
+                        label = indigo.devices[devID].name
+
+                    location = bytearray(base64.b64decode(indigo.devices[devID].pluginProps[LOCATION_KEY]))
+
+                    self.logger.debug("GetLocation message, replying for: " + indigo.devices[devID].name)
+
+                    payload = {"location": location, "label": label, "updated_at": time_s}
+                    replyMessage = StateLocation(message.target_addr, source, seq_num, payload, False, False)
+                    self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+                    if message.ack_requested:
+                        replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False)
+                        self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+        elif message.message_type == MSG_IDS[StateLocation]:                                                # 50
+
+            for devID, alias in self.publishedDevices.items():
+                if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+                    self.logger.debug("StateLocation message for device " + devID + " - not supported!")
+
+                    if message.ack_requested:
+                        self.logger.debug("Oops!  Client wants an ACK")
+                    if message.response_requested:
+                        self.logger.debug("Oops!  Client wants a response")
+
+        elif message.message_type == MSG_IDS[GetGroup]:                                                     # 51
+
+            time_s = str(int(time.time() * 1000000000))
+            
+            for devID, alias in self.publishedDevices.items():
+
+                if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:   # reply with info for requested device
+
+                    try:
+                        label = indigo.devices[devID].pluginProps[ALT_NAME_KEY]
+                    except:
+                        label = indigo.devices[devID].name
+
+                    location = bytearray(base64.b64decode(indigo.devices[devID].pluginProps[LOCATION_KEY]))
+
+                    self.logger.debug("GetLocation message, replying for: " + indigo.devices[devID].name)
+
+                    payload = {"group": location, "label": label, "updated_at": time_s}
+                    replyMessage = StateGroup(message.target_addr, source, seq_num, payload, False, False)
+                    self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+                    if message.ack_requested:
+                        replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False)
+                        self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
+
+        elif message.message_type == MSG_IDS[StateGroup]:                                                  # 53
+
+            for devID, alias in self.publishedDevices.items():
+                if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
+                    self.logger.debug("StateGroup message for device " + devID + " - not supported!")
+
+                    if message.ack_requested:
+                        self.logger.debug("Oops!  Client wants an ACK")
+                    if message.response_requested:
+                        self.logger.debug("Oops!  Client wants a response")
+
         elif message.message_type == MSG_IDS[EchoRequest]:                                                  # 58
 
             payload = message.payload_fields
@@ -632,7 +712,11 @@ class Plugin(indigo.PluginBase):
                     except:
                         label = indigo.devices[devID].name
 
-                    payload = {"color": ("16200", "130", self.getDeviceBrightness(devID), "3000"),"reserved1":"0","power_level":self.getDevicePower(devID),"label":label,"reserved2":"0"}
+                    colors = self.getDeviceColor(devID)
+                    power_level = self.getDevicePower(devID)
+                    self.logger.debug("LightGet power_level = {}, colors = {}".format(power_level, colors))
+                    
+                    payload = {"color" : colors, "power_level" : power_level, "label" : label, "reserved1" : "0", "reserved2" : "0"}
                     target_addr = indigo.devices[devID].pluginProps[MAC_KEY]
                     replyMessage = LightState(target_addr, source, seq_num, payload, False, False)
                     self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
@@ -647,7 +731,7 @@ class Plugin(indigo.PluginBase):
 
                 if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
 
-                    self.logger.debug("LightSetColor command is for device: " + indigo.devices[devID].name + ", payload = " + str(message.payload_fields))
+                    self.logger.info("LightSetColor command is for device: " + indigo.devices[devID].name + ", payload = " + str(message.payload_fields))
 
                     for field in message.payload_fields:
                         if field[0] == "Color":
@@ -700,10 +784,11 @@ class Plugin(indigo.PluginBase):
 
             for devID, alias in self.publishedDevices.items():
                 if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
-                    self.logger.debug("LightSetPower command is for device: " + indigo.devices[devID].name + ", payload = " + str(message.payload_fields))
+                    self.logger.debug("LightSetPower command is for device: " + indigo.devices[devID].name + ", payload_fields = " + str(message.payload_fields))
 
                     for field in message.payload_fields:
-                        if field[0] == "Power":
+                        self.logger.debug("\tfield[0] = {}, field[1] = {}".format(field[0], field[1]))
+                        if field[0] == "Power Level":
                             self.turnOnOffDevice(devID, field[1])
                             break
 
@@ -771,37 +856,6 @@ class Plugin(indigo.PluginBase):
             self.logger.info(u"Device with id %i doesn't support dimming." % deviceId)
 
     ########################################
-    # Method called from lifxRespond() to set color of a device
-    #
-    #   deviceId is the ID of the device in Indigo
-    #    hue, saturation, brightness are in the range 0-65535 (LIFX range)
-    ########################################
-    def setDeviceColor(self, deviceId, hue, saturation, brightness, color):
-        self.logger.info(u"setDeviceColor for {}: hue = {}, saturation = {}, brightness = {}, color = {}".format(deviceId, hue, saturation, brightness, color))
-        try:
-            dev = indigo.devices[deviceId]
-        except:
-            self.logger.error(u"Device with id %i doesn't exist. The device list will be rebuilt." % deviceId)
-            self.refreshDeviceList()
-            return
-            
-        if isinstance(dev, indigo.DimmerDevice):
-            if not dev.supportsRGB:
-                adjusted = long(brightness / 655.35)    # adjust to Indigo range
-                self.logger.info(u"Set brightness of device {} to {}".format(deviceId, brightness))
-                indigo.dimmer.setBrightness(dev, value=adjusted)
-                return
-            else:
-                rgb_color = colorsys.hsv_to_rgb(float(hue)/65535.0, float(saturation)/65535.0, float(brightness)/65535.0)
-                adj_red = (rgb_color[0] * 100.0)
-                adj_green = (rgb_color[1] * 100.0)
-                adj_blue = (rgb_color[2] * 100.0)
-                self.logger.info(u"setColorLevels of device {} to red = {}, green = {}, blue = {}".format(deviceId, adj_red, adj_green, adj_blue))
-                indigo.dimmer.setColorLevels(dev, adj_red, adj_green, adj_blue, 0, 0, 0)
-        else:
-            self.logger.info(u"Device with id {} doesn't support dimming.".format(deviceId))
-
-    ########################################
     # Method called from lifxRespond() to get the brightness of a device
     #
     #   deviceId is the ID of the device in Indigo
@@ -819,6 +873,76 @@ class Plugin(indigo.PluginBase):
             return int((float(dev.brightness) / 100.0) * 65535)     # adjust to LIFX range
         else:
             return int(dev.onState) * 65535
+
+    ########################################
+    # Method called from lifxRespond() to set color of a device
+    #
+    #   deviceId is the ID of the device in Indigo
+    #    hue, saturation, brightness are in the range 0-65535 (LIFX range)
+    ########################################
+    def setDeviceColor(self, deviceId, hue, saturation, brightness, color):
+        self.logger.info(u"setDeviceColor for {}: hue = {}, saturation = {}, brightness = {}, color = {}".format(deviceId, hue, saturation, brightness, color))
+        try:
+            dev = indigo.devices[deviceId]
+        except:
+            self.logger.error(u"Device with id %i doesn't exist. The device list will be rebuilt." % deviceId)
+            self.refreshDeviceList()
+            return
+            
+        if isinstance(dev, indigo.DimmerDevice):
+            if not dev.supportsRGB:
+                adjusted = brightness / 655.35      # adjust to Indigo range
+                self.logger.info(u"Set brightness of device {} to {}".format(deviceId, brightness))
+                indigo.dimmer.setBrightness(dev, value=adjusted)
+                return
+            else:
+                adj_hue = float(hue)/65535.0
+                adj_sat = float(saturation)/65535.0
+                adj_val = float(brightness)/65535.0
+                self.logger.info(u"setDeviceColor adjusted: hue = {}, saturation = {}, brightness = {}".format(adj_hue, adj_sat, adj_val))
+                rgb_color = colorsys.hsv_to_rgb(adj_hue, adj_sat, adj_val)
+                self.logger.info(u"setDeviceColor hsv_to_rgb = {}".format(rgb_color))
+                adj_red = (rgb_color[0] * 100.0)
+                adj_green = (rgb_color[1] * 100.0)
+                adj_blue = (rgb_color[2] * 100.0)
+                self.logger.info(u"setColorLevels of device {} to red = {}, green = {}, blue = {}".format(deviceId, adj_red, adj_green, adj_blue))
+                indigo.dimmer.setColorLevels(dev, adj_red, adj_green, adj_blue, 0, 0, 0)
+        else:
+            self.logger.info(u"Device with id {} doesn't support dimming.".format(deviceId))
+
+    ########################################
+    # Method called from lifxRespond() to get the color of a device
+    #
+    #   deviceId is the ID of the device in Indigo
+    #   brightness is in the range 0-65535 (LIFX range)
+    ########################################
+    def getDeviceColor(self, deviceId):
+        try:
+            dev = indigo.devices[deviceId]
+        except:
+            self.logger.error(u"Device with id %i doesn't exist. The device list will be rebuilt." % deviceId)
+            self.refreshDeviceList()
+            return
+
+        if isinstance(dev, indigo.DimmerDevice):
+            if not dev.supportsRGB:
+                self.logger.warning(u"getDeviceColor: Device with id %i doesn't support color." % deviceId)
+                return  (0, 0, int((float(dev.brightness) / 100.0) * 65535), dev.whiteTemperature)
+
+            else:   
+                red = dev.redLevel / 100.0          # normalize first
+                green = dev.greenLevel / 100.0
+                blue = dev.blueLevel / 100.0
+                hsv_color = colorsys.rgb_to_hsv(red, green, blue)
+                
+                adj_hue = int(hsv_color[0] * 65535) # convert to LIFX
+                adj_sat = int(hsv_color[1] * 65535) 
+                adj_val = int(hsv_color[2] * 65535)
+                
+                return (adj_hue, adj_sat, adj_val, dev.whiteTemperature)
+        else:
+            self.logger.warning(u"getDeviceColor: Device with id %i not a dimmer." % deviceId)
+            return  (0, 0, int(dev.onState * 65535), dev.whiteTemperature)
 
     ########################################
     # Method called from lifxRespond() to get the power state of a device
