@@ -152,6 +152,9 @@ class Plugin(indigo.PluginBase):
             if PUBLISHED_KEY in props:
                 self.publishedDevices[dev.id] = props.get(ALT_NAME_KEY, "")
                 self.logger.debug(u"found published device: %i - %s (%s) - %s" % (dev.id, dev.name, self.publishedDevices[dev.id], props[MAC_KEY]))
+                if not props.get(LOCATION_KEY, None):
+                    props[LOCATION_KEY] = base64.b64encode(bytearray(os.urandom(16)))
+                    dev.replacePluginPropsOnServer(props)
         self.logger.debug(u"%i devices published" % len(self.publishedDevices))
 
     ########################################
@@ -625,6 +628,7 @@ class Plugin(indigo.PluginBase):
 
                     location = bytearray(base64.b64decode(indigo.devices[devID].pluginProps[LOCATION_KEY]))
 
+
                     self.logger.debug("GetLocation message, replying for: " + indigo.devices[devID].name)
 
                     payload = {"location": location, "label": label, "updated_at": time_s}
@@ -884,7 +888,7 @@ class Plugin(indigo.PluginBase):
             brightness = int((float(dev.brightness) / 100.0) * 65535)     # adjust to LIFX range
         else:
             brightness = int(dev.onState) * 65535
-        self.logger.info(u"getDeviceBrightness: %i is %i" % (deviceId, brightness))
+        self.logger.debug(u"getDeviceBrightness: %i is %i" % (deviceId, brightness))
         return brightness
 
     ########################################
@@ -954,6 +958,8 @@ class Plugin(indigo.PluginBase):
                 adj_sat = int(hsv_color[1] * 65535) 
                 adj_val = int(hsv_color[2] * 65535)
                 temp = dev.whiteTemperature
+                if not temp:
+                    temp = 3000
                             
         else:
             adj_hue = 0
