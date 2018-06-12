@@ -858,15 +858,15 @@ class Plugin(indigo.PluginBase):
     ########################################
     def setDeviceBrightness(self, deviceId, brightness):
         try:
-            dev = indigo.devices[deviceId]
+            iDev = indigo.devices[deviceId]
         except:
             self.logger.error(u"Device with id %i doesn't exist. The device list will be rebuilt." % deviceId)
             self.refreshDeviceList()
             return
-        if isinstance(dev, indigo.DimmerDevice):
+        if isinstance(iDev, indigo.DimmerDevice):
             adjusted = int((brightness / 65535.0 ) * 100.0)     # adjust to Indigo range
             self.logger.info(u"setDeviceBrightness: %i to %i" % (deviceId, brightness))
-            indigo.dimmer.setBrightness(dev, value=adjusted)
+            indigo.dimmer.setBrightness(iDev, value=adjusted)
         else:
             self.logger.debug(u"Device with id %i doesn't support dimming." % deviceId)
 
@@ -878,16 +878,16 @@ class Plugin(indigo.PluginBase):
     ########################################
     def getDeviceBrightness(self, deviceId):
         try:
-            dev = indigo.devices[deviceId]
+            iDev = indigo.devices[deviceId]
         except:
             self.logger.error(u"Device with id %i doesn't exist. The device list will be rebuilt." % deviceId)
             self.refreshDeviceList()
             return
 
-        if isinstance(dev, indigo.DimmerDevice):
-            brightness = int((float(dev.brightness) / 100.0) * 65535)     # adjust to LIFX range
+        if isinstance(iDev, indigo.DimmerDevice):
+            brightness = int((float(iDev.brightness) / 100.0) * 65535)     # adjust to LIFX range
         else:
-            brightness = int(dev.onState) * 65535
+            brightness = int(iDev.onState) * 65535
         self.logger.debug(u"getDeviceBrightness: %i is %i" % (deviceId, brightness))
         return brightness
 
@@ -899,18 +899,20 @@ class Plugin(indigo.PluginBase):
     ########################################
     def setDeviceColor(self, deviceId, hue, saturation, brightness, color):
         self.logger.info(u"setDeviceColor for {}: hue = {}, saturation = {}, brightness = {}, color = {}".format(deviceId, hue, saturation, brightness, color))
+#        (old_hue, old_sat, old_bright, old_color) = self.getDeviceColor(deviceId)
+#        self.logger.debug(u"setDeviceColor current values: hue = {}, saturation = {}, brightness = {}, color = {}".format(old_hue, old_sat, old_bright, old_color))
         try:
-            dev = indigo.devices[deviceId]
+            iDev = indigo.devices[deviceId]
         except:
             self.logger.error(u"Device with id %i doesn't exist. The device list will be rebuilt." % deviceId)
             self.refreshDeviceList()
             return
             
-        if isinstance(dev, indigo.DimmerDevice):
-            if not dev.supportsRGB:
-                adjusted = int((brightness / 65535) * 100)      # adjust to Indigo range
+        if isinstance(iDev, indigo.DimmerDevice):
+            if not iDev.supportsRGB:
+                adjusted = int(round(float((brightness) / 65535.0) * 100.0))      # adjust to Indigo range
                 self.logger.info(u"setDeviceColor: %i to %i (non-RGB)" % (deviceId, adjusted))
-                indigo.dimmer.setBrightness(dev, value=adjusted)
+                indigo.dimmer.setBrightness(iDev, value=adjusted)
                 return
             else:
                 adj_hue = float(hue)/65535.0
@@ -923,7 +925,7 @@ class Plugin(indigo.PluginBase):
                 adj_green = (rgb_color[1] * 100.0)
                 adj_blue = (rgb_color[2] * 100.0)
                 self.logger.info(u"setColorLevels: {} to red = {}, green = {}, blue = {}".format(deviceId, adj_red, adj_green, adj_blue))
-                indigo.dimmer.setColorLevels(dev, adj_red, adj_green, adj_blue, 0, 0, 0)
+                indigo.dimmer.setColorLevels(iDev, adj_red, adj_green, adj_blue, 0, 0, 0)
         else:
             self.logger.debug(u"Device with id {} doesn't support dimming.".format(deviceId))
 
@@ -935,36 +937,36 @@ class Plugin(indigo.PluginBase):
     ########################################
     def getDeviceColor(self, deviceId):
         try:
-            dev = indigo.devices[deviceId]
+            iDev = indigo.devices[deviceId]
         except:
             self.logger.error(u"Device with id %i doesn't exist. The device list will be rebuilt." % deviceId)
             self.refreshDeviceList()
             return
 
-        if isinstance(dev, indigo.DimmerDevice):
-            if not dev.supportsRGB:
+        if isinstance(iDev, indigo.DimmerDevice):
+            if not iDev.supportsRGB:
                 adj_hue = 0
                 adj_sat = 0 
-                adj_val = int((dev.brightness / 100.0) * 65535)
+                adj_val = int((iDev.brightness / 100.0) * 65535)
                 temp = 3000
 
             else:   
-                red = dev.redLevel / 100.0          # normalize first
-                green = dev.greenLevel / 100.0
-                blue = dev.blueLevel / 100.0
+                red =   iDev.redLevel   / 100.0          # normalize first
+                green = iDev.greenLevel / 100.0
+                blue =  iDev.blueLevel  / 100.0
                 hsv_color = colorsys.rgb_to_hsv(red, green, blue)
                 
                 adj_hue = int(hsv_color[0] * 65535) # convert to LIFX
                 adj_sat = int(hsv_color[1] * 65535) 
                 adj_val = int(hsv_color[2] * 65535)
-                temp = dev.whiteTemperature
+                temp = iDev.whiteTemperature
                 if not temp:
                     temp = 3000
                             
         else:
             adj_hue = 0
             adj_sat = 0 
-            adj_val = int(dev.onState * 65535)
+            adj_val = int(iDev.onState * 65535)
             temp = 3000
 
         self.logger.debug(u"getDeviceColor of device {}: hue = {}, sat = {}, val = {}, temp = {}".format(deviceId, adj_hue, adj_sat, adj_val, temp))
