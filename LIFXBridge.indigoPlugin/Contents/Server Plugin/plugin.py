@@ -840,7 +840,7 @@ class Plugin(indigo.PluginBase):
     #   turnOn is a boolean to indicate on/off
     ########################################
     def turnOnOffDevice(self, deviceId, turnOn):
-        self.logger.info(u"Set on state of device %i to %s" % (deviceId, str(turnOn)))
+        self.logger.debug(u"Set on state of device %i to %s" % (deviceId, str(turnOn)))
         try:
             if turnOn:
                 indigo.device.turnOn(deviceId)
@@ -865,7 +865,7 @@ class Plugin(indigo.PluginBase):
             return
         if isinstance(iDev, indigo.DimmerDevice):
             adjusted = int((brightness / 65535.0 ) * 100.0)     # adjust to Indigo range
-            self.logger.info(u"setDeviceBrightness: %i to %i" % (deviceId, brightness))
+            self.logger.debug(u"setDeviceBrightness: %i to %i" % (deviceId, brightness))
             indigo.dimmer.setBrightness(iDev, value=adjusted)
         else:
             self.logger.debug(u"Device with id %i doesn't support dimming." % deviceId)
@@ -898,9 +898,7 @@ class Plugin(indigo.PluginBase):
     #    hue, saturation, brightness are in the range 0-65535 (LIFX range)
     ########################################
     def setDeviceColor(self, deviceId, hue, saturation, brightness, color):
-        self.logger.info(u"setDeviceColor for {}: hue = {}, saturation = {}, brightness = {}, color = {}".format(deviceId, hue, saturation, brightness, color))
-#        (old_hue, old_sat, old_bright, old_color) = self.getDeviceColor(deviceId)
-#        self.logger.debug(u"setDeviceColor current values: hue = {}, saturation = {}, brightness = {}, color = {}".format(old_hue, old_sat, old_bright, old_color))
+        self.logger.debug(u"setDeviceColor for {}: hue = {}, saturation = {}, brightness = {}, color = {}".format(deviceId, hue, saturation, brightness, color))
         try:
             iDev = indigo.devices[deviceId]
         except:
@@ -911,7 +909,7 @@ class Plugin(indigo.PluginBase):
         if isinstance(iDev, indigo.DimmerDevice):
             if not iDev.supportsRGB:
                 adjusted = int(round(float((brightness) / 65535.0) * 100.0))      # adjust to Indigo range
-                self.logger.info(u"setDeviceColor: %i to %i (non-RGB)" % (deviceId, adjusted))
+                self.logger.debug(u"setDeviceColor: %i to %i (non-RGB)" % (deviceId, adjusted))
                 indigo.dimmer.setBrightness(iDev, value=adjusted)
                 return
             else:
@@ -924,7 +922,7 @@ class Plugin(indigo.PluginBase):
                 adj_red = (rgb_color[0] * 100.0)
                 adj_green = (rgb_color[1] * 100.0)
                 adj_blue = (rgb_color[2] * 100.0)
-                self.logger.info(u"setColorLevels: {} to red = {}, green = {}, blue = {}".format(deviceId, adj_red, adj_green, adj_blue))
+                self.logger.debug(u"setColorLevels: {} to red = {}, green = {}, blue = {}".format(deviceId, adj_red, adj_green, adj_blue))
                 indigo.dimmer.setColorLevels(iDev, adj_red, adj_green, adj_blue, 0, 0, 0)
         else:
             self.logger.debug(u"Device with id {} doesn't support dimming.".format(deviceId))
