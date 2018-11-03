@@ -273,12 +273,12 @@ class Plugin(indigo.PluginBase):
     # Actions defined in MenuItems.xml:
     ########################################
     def listDevices(self):
-        self.logger.info(u"{:<16}  {:<20} {:<30}".format("Indigo DevID", "LIFX Address", "Indigo Name (alias)"))
+        self.logger.info(u"{:<16}  {:<20} {:<30}".format(u"Indigo DevID", u"LIFX Address", u"Indigo Name (alias)"))
         for id, name in self.publishedDevices.items():
             fakeMAC = indigo.devices[id].pluginProps[MAC_KEY]
             deviceName = indigo.devices[id].name
             if len(name) > 0:
-                deviceName = "{} ({})".format(deviceName, name)
+                deviceName = u"{} ({})".format(deviceName, name)
             self.logger.info(u"{:<16}  {:20} {:30}".format(id, fakeMAC, deviceName))
             
         
