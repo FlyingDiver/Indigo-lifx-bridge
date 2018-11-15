@@ -737,7 +737,7 @@ class Plugin(indigo.PluginBase):
 
                 if message.target_addr == indigo.devices[devID].pluginProps[MAC_KEY]:
 
-                    self.logger.debug(u"LightSetColor command is for device: " + indigo.devices[devID].name + ", payload = " + str(message.payload_fields))
+                    self.logger.debug(u"LightSetColor command is for device: {}, payload = {}".format(indigo.devices[devID].name, str(message.payload_fields)))
 
                     for field in message.payload_fields:
                         if field[0] == "Color":
@@ -750,7 +750,8 @@ class Plugin(indigo.PluginBase):
                         replyMessage = Acknowledgement(target_addr, source, seq_num, None, False, False)
                         self.sock.sendto(replyMessage.packed_message,(ip_addr, port))
 
-                    if message.response_requested:
+#                    if message.response_requested:
+                    if True:
                         try:
                             label = indigo.devices[devID].pluginProps[ALT_NAME_KEY]
                         except:
