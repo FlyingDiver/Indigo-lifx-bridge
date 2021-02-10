@@ -98,7 +98,7 @@ class Plugin(indigo.PluginBase):
                 else:
                     self.sleep(1.0)     # longer sleep when not looking for LIFX requests
 
-        except self.stopThread:
+        except self.StopThread:
             pass
 
 
@@ -132,13 +132,13 @@ class Plugin(indigo.PluginBase):
             if ALT_NAME_KEY in origDev.pluginProps or ALT_NAME_KEY in newDev.pluginProps:
                 if origDev.pluginProps.get(ALT_NAME_KEY, None) != newDev.pluginProps.get(ALT_NAME_KEY, None):
                     self.refreshDeviceList()
-                    self.logger.info(u"A device alternative name changed.")
+                    self.logger.debug(u"A device alternative name changed.")
             elif origDev.name != newDev.name:
                 self.refreshDeviceList()
-                self.logger.info(u"A device name changed.")
+                self.logger.debug(u"A device name changed.")
             elif origDev.pluginProps.get(PUBLISHED_KEY, "False") != newDev.pluginProps.get(PUBLISHED_KEY, "False"):
                 self.refreshDeviceList()
-                self.logger.info(u"Your published device list changed.")
+                self.logger.debug(u"Your published device list changed.")
 
     ########################################
     # This method is called to refresh the list of published devices.
@@ -207,7 +207,7 @@ class Plugin(indigo.PluginBase):
         # no devices have yet been added. "memberDevices" is a hidden text
         # field in the dialog that holds a comma-delimited list of device
         # ids, one for each of the devices in the scene.
-        self.logger.debug(u"adding device: %s" % deviceId)
+        self.logger.debug(u"adding device: {}".format(deviceId))
         # Get the list of devices that are already in the scene
         # Add or update the name to the plugin's cached list
         self.publishedDevices[deviceId] = valuesDict["altName"]
@@ -219,19 +219,25 @@ class Plugin(indigo.PluginBase):
         # Add the flag to the props. May already be there, but no harm done.
         props[PUBLISHED_KEY] = "True"
         # Add/update the name to the props.
-        self.logger.debug(u"addDevice: valuesDict['altName']: |%s|" % str(valuesDict["altName"]))
+        self.logger.debug(u"addDevice: valuesDict['altName']: |{}|".format(str(valuesDict["altName"])))
         if len(valuesDict["altName"]):
             props[ALT_NAME_KEY] = valuesDict["altName"]
+        # hack to get around Harmony bug that doesn't like Unicode names
+        elif not all(ord(char) < 128 for char in dev.name):
+            alias = ''.join(i if ord(i)<128 else "_" for i in dev.name)
+            self.logger.info(u"Forcing alias '{}' for '{}' (Harmony requires non-Unicode names)".format(alias, dev.name))
+            props[ALT_NAME_KEY] = alias
         elif ALT_NAME_KEY in props:
             del props[ALT_NAME_KEY]
-
+        
+        
         # add a fake MAC address and random location array to the props
         props[MAC_KEY] = fakeMAC(deviceId)
         props[LOCATION_KEY] = base64.b64encode(bytearray(os.urandom(16)))
 
         # Replace the props on the server's copy of the device instance.
         dev.replacePluginPropsOnServer(props)
-        self.logger.debug(u"valuesDict = " + str(valuesDict))
+        self.logger.threaddebug(u"valuesDict = {}".format(valuesDict))
         # Clear out the name field and the source device field
         valuesDict["sourceDeviceMenu"] = ""
         valuesDict["enableAltNameField"] = "False"
