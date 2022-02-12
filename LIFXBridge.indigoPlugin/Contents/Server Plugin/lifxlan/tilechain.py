@@ -1,12 +1,12 @@
-import os
+import random
 
 from .errors import WorkflowException, InvalidParameterException
 from .light import Light
-from .msgtypes import GetTileState64, StateTileState64, SetTileState64, GetDeviceChain, StateDeviceChain, SetUserPosition
+from .msgtypes import GetTileState64, StateTileState64, SetTileState64, GetDeviceChain, StateDeviceChain, SetUserPosition, SetTileEffect, GetTileEffect, StateTileEffect
 from threading import Thread
 
 class TileChain(Light):
-    def __init__(self, mac_addr, ip_addr, service=1, port=56700, source_id=os.getpid(), verbose=False):
+    def __init__(self, mac_addr, ip_addr, service=1, port=56700, source_id=random.randrange(2, 1 << 32), verbose=False):
         super(TileChain, self).__init__(mac_addr, ip_addr, service, port, source_id, verbose)
         self.tile_info = None
         self.tile_count = None
@@ -209,6 +209,43 @@ class TileChain(Light):
             #    print(row)
             self.tile_map = tile_map
         return self.tile_map
+
+    def get_tile_effect(self):
+        response = self.req_with_resp(GetTileEffect, StateTileEffect)
+        effect = {"instanceid": response.instanceid,
+                  "type": response.effect_type,
+                  "speed": response.speed,
+                  "duration": response.duration,
+                  "parameters": response.parameters,
+                  "palette": response.palette}
+        return effect
+
+    def set_tile_effect(self, effect_type=0, speed=0, duration=0, palette=[], instanceid=0, parameters=[], rapid=False):
+        if len(palette)>16:
+            raise InvalidParameterException("Maximum palette size is 16, {} given.".format(len(palette)))
+        if len(parameters)>8:
+            raise InvalidParameterException("Maximum parameters size is 8, {} given.".format(len(parameters)))
+
+        # parameters is not currently used by any effect, so just zero these out for now
+        if len(parameters) < 8:
+            for i in range(len(parameters), 8):
+                parameters.append(0)
+
+        payload = {"reserved1": 0,
+                   "reserved2": 0,
+                   "instanceid": instanceid,
+                   "type": effect_type,
+                   "speed": speed,
+                   "duration": duration,
+                   "reserved3": 0,
+                   "reserved4": 0,
+                   "parameters": parameters,
+                   "palette_count": len(palette),
+                   "palette": palette}
+        if not rapid:
+            self.req_with_ack(SetTileEffect, payload)
+        else:
+            self.fire_and_forget(SetTileEffect, payload, num_repeats=1)
 
 
 class Tile(object):
