@@ -2,14 +2,14 @@
 
 This plugin will emulate LIFX devices for the purpose of publishing Indigo devices to be controlled by LIFX client apps.  The primary goal of this bridge was to allow control of Indigo devices by Logitech Harmony Hubs.
 
-### Usage
+| Requirement            |                     |   |
+|------------------------|---------------------|---|
+| Minimum Indigo Version | 2022.1              |   |
+| Python Library (API)   | Unofficial          |   |
+| Requires Local Network | Yes                 |   |
+| Requires Internet      | No                  |   |
+| Hardware Interface     | None                |   |
 
-The plugin is quite straight-forward: the first thing you’ll want to do is
-install it. Download the version you want from the releases section above (we
-always recommend the most recent release but you can go back to previous
-releases if you want to). Once downloaded, double-click the plugin file in the
-Finder on your Indigo Server Mac. This will install and enable the plugin. The
-next sections go into more detail about configuring and using the plugin.
 
 ### Managing Devices
 
